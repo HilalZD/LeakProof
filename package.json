@@ -29,6 +29,14 @@
   ],
   "author": "Hilal Zeidan",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HilalZD/LeakProof.git"
+  },
+  "homepage": "https://github.com/HilalZD/LeakProof#readme",
+  "bugs": {
+    "url": "https://github.com/HilalZD/LeakProof/issues"
+  },
   "dependencies": {
     "commander": "^15.0.0",
     "picocolors": "^1.1.1"
