@@ -38,6 +38,8 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Known gap: .env files deleted from git but still in git history aren't detected yet.
 - Known gap: connection strings with passwords hardcoded in code files (not .env) aren't detected yet.
 - Known gap: Rule 3 is skipped for example files, so a real non-localhost password in .env.example isn't caught.
+- Known gap: only Stripe webhooks are checked. Other providers (Lemon Squeezy, Paddle, PayPal) come later. A handler that reads the signature header but never actually compares it can be missed.
+- Known gap: a webhook handler that only uses event names imported from another file (e.g. a constants file) has no event name string of its own, so it isn't recognized as a handler.
 
 ## Expected results
 - notenest main branch: 0 issues
