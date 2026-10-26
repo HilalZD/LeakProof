@@ -1,5 +1,6 @@
+import { performance } from "node:perf_hooks";
 import { checks as defaultChecks } from "./checks/index.js";
-import { CheckSkipped, type Check, type Finding } from "./types.js";
+import { CheckSkipped, type Check, type Finding, type ScanContext } from "./types.js";
 
 export interface SkippedCheck {
   check: Check;
@@ -11,6 +12,9 @@ export interface ScanResult {
   checks: Check[];
   findings: Finding[];
   skipped: SkippedCheck[];
+  /** Distinct files read across all checks. */
+  filesChecked: number;
+  durationMs: number;
 }
 
 /** Runs every check against projectPath and collects all findings. */
@@ -18,15 +22,24 @@ export async function runScan(
   projectPath: string,
   checks: Check[] = defaultChecks,
 ): Promise<ScanResult> {
+  const start = performance.now();
+  const context: ScanContext = { filesRead: new Set() };
   const findings: Finding[] = [];
   const skipped: SkippedCheck[] = [];
   for (const check of checks) {
     try {
-      findings.push(...(await check.run(projectPath)));
+      findings.push(...(await check.run(projectPath, context)));
     } catch (error) {
       if (!(error instanceof CheckSkipped)) throw error;
       skipped.push({ check, reason: error.message });
     }
   }
-  return { projectPath, checks, findings, skipped };
+  return {
+    projectPath,
+    checks,
+    findings,
+    skipped,
+    filesChecked: context.filesRead.size,
+    durationMs: Math.round(performance.now() - start),
+  };
 }

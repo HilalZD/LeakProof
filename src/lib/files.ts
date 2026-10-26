@@ -1,5 +1,6 @@
 import { open, readdir, stat } from "node:fs/promises";
 import { extname, join, relative, sep } from "node:path";
+import type { ScanContext } from "../types.js";
 
 // .output is the build folder of Nitro-based frameworks (TanStack Start, Nuxt).
 const SKIPPED_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".output", "coverage"]);
@@ -64,10 +65,12 @@ async function* walk(dir: string, include: (name: string) => boolean): AsyncGene
 export async function* walkFiles(
   projectPath: string,
   include: (name: string) => boolean,
+  context?: ScanContext,
 ): AsyncGenerator<string> {
   for await (const filePath of walk(projectPath, include)) {
     const { size } = await stat(filePath);
     if (size > MAX_FILE_SIZE || (await isBinary(filePath))) continue;
+    context?.filesRead.add(filePath);
     yield filePath;
   }
 }

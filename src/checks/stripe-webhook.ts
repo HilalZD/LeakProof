@@ -109,9 +109,9 @@ export const stripeWebhookCheck: Check = {
   id: CHECK_ID,
   name: "Stripe webhook signature verification",
   severity: "critical",
-  async run(projectPath) {
+  async run(projectPath, context) {
     const findings: Finding[] = [];
-    for await (const filePath of walkFiles(projectPath, isScriptFile)) {
+    for await (const filePath of walkFiles(projectPath, isScriptFile, context)) {
       const file = toProjectPath(projectPath, filePath);
       if (file.split("/").includes("__tests__")) continue;
 

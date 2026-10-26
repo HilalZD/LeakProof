@@ -153,10 +153,10 @@ export const committedEnvCheck: Check = {
   id: CHECK_ID,
   name: "Committed .env files",
   severity: "critical",
-  async run(projectPath) {
+  async run(projectPath, context) {
     const secretsByFile = new Map<string, Secret[]>();
     const files: string[] = [];
-    for await (const filePath of walkFiles(projectPath, isEnvFile)) {
+    for await (const filePath of walkFiles(projectPath, isEnvFile, context)) {
       const file = toProjectPath(projectPath, filePath);
       files.push(file);
       const exampleFile = EXAMPLE_FILE.test(basename(file));

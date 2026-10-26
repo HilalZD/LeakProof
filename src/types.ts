@@ -22,7 +22,13 @@ export interface Check {
   name: string;
   /** Default severity of findings from this check. */
   severity: Severity;
-  run(projectPath: string): Promise<Finding[]>;
+  run(projectPath: string, context?: ScanContext): Promise<Finding[]>;
+}
+
+/** Shared by all checks during one scan. */
+export interface ScanContext {
+  /** Absolute paths of every file a check has read, so the report can count them once. */
+  filesRead: Set<string>;
 }
 
 /** Thrown by a check that can't run on this project, e.g. git is missing. */

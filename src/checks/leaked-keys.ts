@@ -51,9 +51,9 @@ export const leakedKeysCheck: Check = {
   id: CHECK_ID,
   name: "Leaked secret keys in code",
   severity: "critical",
-  async run(projectPath) {
+  async run(projectPath, context) {
     const findings: Finding[] = [];
-    for await (const filePath of walkFiles(projectPath, isCodeFile)) {
+    for await (const filePath of walkFiles(projectPath, isCodeFile, context)) {
       const file = toProjectPath(projectPath, filePath);
       findings.push(...scanContent(file, await readFile(filePath, "utf8")));
     }
