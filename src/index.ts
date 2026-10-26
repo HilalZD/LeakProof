@@ -5,10 +5,19 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import pc from "picocolors";
 import { runScan } from "./scan.js";
+import type { Severity } from "./types.js";
 
 // Read the version from package.json so it only lives in one place.
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
+
+function severityLabel(severity: Severity): string {
+  const label = severity.toUpperCase();
+  if (severity === "critical") return pc.bgRed(pc.white(pc.bold(` ${label} `)));
+  if (severity === "high") return pc.red(pc.bold(label));
+  if (severity === "medium") return pc.yellow(label);
+  return pc.dim(label);
+}
 
 const program = new Command();
 
@@ -37,6 +46,14 @@ program
     console.log(pc.dim("Checks run:"));
     for (const check of result.checks) {
       console.log(`  ${pc.green("✓")} ${check.name} ${pc.dim(`(${check.id})`)}`);
+    }
+
+    for (const finding of result.findings) {
+      const location = finding.line ? `${finding.file}:${finding.line}` : finding.file;
+      console.log();
+      console.log(`${severityLabel(finding.severity)} ${pc.bold(location)}`);
+      console.log(`  ${finding.message}`);
+      console.log(`  ${pc.cyan("Fix:")} ${finding.fix}`);
     }
 
     console.log();

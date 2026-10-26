@@ -1,5 +1,5 @@
 Answer key
-The answer key is only in this chat and isn't saved in the repo. Line numbers are in the committed broken branch.
+Line numbers are in the committed broken branch.
 
 Leaks
 
@@ -23,7 +23,9 @@ src/routes/pricing.tsx	9	Stripe publishable key (pk_test_FAKE…)
 src/routes/pricing.tsx	12	Decoy use of that key, in initStripe()
 Pass-through: pricing.tsx line 51 passes the publishable key to payments.ts line 9, which only forwards it as metadata. It is not a key literal, but a loose scanner could trip on it.
 Other .env lines: .env lines 1 and 4 are the Supabase project ID (SUPABASE_PROJECT_ID, VITE_SUPABASE_PROJECT_ID). They are not secrets.
-Supabase files: the other src/integrations/supabase/* files only reference sb_publishable_ as a string prefix check, with no key values.  ## Scanner notes (learned while building the test app)
+Supabase files: the other src/integrations/supabase/* files only reference sb_publishable_ as a string prefix check, with no key values.
+
+## Scanner notes (learned while building the test app)
 
 - Webhooks can live in app server routes (src/routes/api/...), not only in supabase/functions/
 - Signature verification has many forms: stripe-signature header read, hand-written HMAC, or constructEvent / constructEventAsync. Detect any of them.
@@ -31,6 +33,8 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Supabase keys: anon / publishable (sb_publishable_) are SAFE. service_role JWT and sb_secret_ are SECRET.
 - VITE_-prefixed variables end up in the browser bundle, so any secret with a VITE_ name is a leak.
 - Watch for pass-through: a publishable key passed into a function that also handles a secret.
+- Known gap (leaked-keys check): destructured Vite env vars such as `const { VITE_STRIPE_SECRET_KEY } = import.meta.env` are not detected yet. Only `import.meta.env.VITE_X` and `import.meta.env["VITE_X"]` are.
+- Idea for later: scan built bundles (.output/, dist/) for secrets. This is what visitors actually download, and it's the same technique as the URL-only free scan on a live site.
 
 ## Expected results
 - notenest main branch: 0 issues
