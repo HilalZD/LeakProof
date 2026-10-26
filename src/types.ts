@@ -24,3 +24,6 @@ export interface Check {
   severity: Severity;
   run(projectPath: string): Promise<Finding[]>;
 }
+
+/** Thrown by a check that can't run on this project, e.g. git is missing. */
+export class CheckSkipped extends Error {}

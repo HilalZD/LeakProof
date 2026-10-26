@@ -45,7 +45,12 @@ program
     console.log();
     console.log(pc.dim("Checks run:"));
     for (const check of result.checks) {
-      console.log(`  ${pc.green("✓")} ${check.name} ${pc.dim(`(${check.id})`)}`);
+      const skip = result.skipped.find((s) => s.check === check);
+      if (skip) {
+        console.log(`  ${pc.yellow("⚠")} ${check.name} ${pc.dim(`(${check.id})`)}: ${pc.yellow(`skipped. ${skip.reason}`)}`);
+      } else {
+        console.log(`  ${pc.green("✓")} ${check.name} ${pc.dim(`(${check.id})`)}`);
+      }
     }
 
     for (const finding of result.findings) {

@@ -35,6 +35,9 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Watch for pass-through: a publishable key passed into a function that also handles a secret.
 - Known gap (leaked-keys check): destructured Vite env vars such as `const { VITE_STRIPE_SECRET_KEY } = import.meta.env` are not detected yet. Only `import.meta.env.VITE_X` and `import.meta.env["VITE_X"]` are.
 - Idea for later: scan built bundles (.output/, dist/) for secrets. This is what visitors actually download, and it's the same technique as the URL-only free scan on a live site.
+- Known gap: .env files deleted from git but still in git history aren't detected yet.
+- Known gap: connection strings with passwords hardcoded in code files (not .env) aren't detected yet.
+- Known gap: Rule 3 is skipped for example files, so a real non-localhost password in .env.example isn't caught.
 
 ## Expected results
 - notenest main branch: 0 issues
