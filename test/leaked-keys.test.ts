@@ -91,6 +91,35 @@ describe("safe decoys are never flagged", () => {
     });
   }
 
+  describe("example keys published in AWS and Stripe docs", () => {
+    const documented = [
+      "AK" + "IA" + "IOSFODNN7EXAMPLE",
+      "AK" + "IA" + "I44QH8DHBEXAMPLE",
+      "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc",
+      "sk_" + "test_" + "BQokikJOvBiI2HlWgH4olfQ2",
+    ];
+
+    for (const value of documented) {
+      it(`ignores ${value.slice(0, 8)}****`, () => {
+        expect(scanContent("test/fixtures.test.ts", `const key = "${value}";`)).toEqual([]);
+      });
+    }
+
+    it("still flags a key that differs from a documented one by one character", () => {
+      const nearMiss = "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dd";
+      expect(scanContent("a.ts", `const key = "${nearMiss}";`)).toHaveLength(1);
+    });
+
+    it("still flags a longer key that starts with a documented one", () => {
+      const extended = "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc" + "Z9";
+      expect(scanContent("a.ts", `"${extended}"`)).toHaveLength(1);
+    });
+
+    it("still flags made-up key-shaped strings in test files (known gap)", () => {
+      expect(scanContent("test/scanner.test.ts", `"${"sk-" + "abcdefghij".repeat(3)}"`)).toHaveLength(1);
+    });
+  });
+
   it("ignores a bare sb_secret_ prefix check", () => {
     const code = "return value.startsWith('sb_" + "publishable_') || value.startsWith('sb_" + "secret_');";
     expect(scanContent("a.ts", code)).toEqual([]);

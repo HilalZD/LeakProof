@@ -131,6 +131,12 @@ describe("classify", () => {
     expect(atSign?.masked).toBe("postgres://app:****@db");
   });
 
+  it("never flags the example keys from AWS and Stripe docs", () => {
+    const stripeDocs = "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc";
+    expect(secret("STRIPE_SECRET_KEY", stripeDocs)).toBe(false); // Rule 1 and Rule 2
+    expect(secret("AWS_ACCESS_KEY_ID", "AK" + "IA" + "IOSFODNN7EXAMPLE")).toBe(false);
+  });
+
   it("example files are only flagged for real-shaped keys", () => {
     expect(secret("STRIPE_SECRET_KEY", STRIPE_TEST, true)).toBe(true);
     expect(secret("JWT_SECRET", RANDOM_TOKEN, true)).toBe(false);

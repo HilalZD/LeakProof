@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { isEnvFile, toProjectPath, walkFiles } from "../lib/files.js";
 import { mask } from "../lib/mask.js";
-import { findSecretKeys } from "../lib/patterns.js";
+import { findSecretKeys, isDocumentedExampleKey } from "../lib/patterns.js";
 import { CheckSkipped, type Check, type Finding } from "../types.js";
 
 const CHECK_ID = "committed-env";
@@ -89,7 +89,8 @@ export function classify(entry: EnvEntry, exampleFile: boolean): Secret | undefi
     SECRET_NAME_PARTS.some((part) => upper.includes(part)) &&
     !SAFE_NAME_PARTS.some((part) => upper.includes(part)) &&
     value !== "" &&
-    !isPlaceholder(value)
+    !isPlaceholder(value) &&
+    !isDocumentedExampleKey(value)
   ) {
     return { entry, masked: mask(value) };
   }

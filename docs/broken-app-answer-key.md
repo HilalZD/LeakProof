@@ -40,6 +40,10 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Known gap: Rule 3 is skipped for example files, so a real non-localhost password in .env.example isn't caught.
 - Known gap: only Stripe webhooks are checked. Other providers (Lemon Squeezy, Paddle, PayPal) come later. A handler that reads the signature header but never actually compares it can be missed.
 - Known gap: a webhook handler that only uses event names imported from another file (e.g. a constants file) has no event name string of its own, so it isn't recognized as a handler.
+- Documented example keys (AWS's published example access keys, Stripe's docs example keys) are allowlisted in src/lib/patterns.ts and never flagged.
+- Known gap: made-up key-shaped strings in test files are flagged.
+- Known gap: a webhook route file that never runs, because the server entry handles the same path first and verifies it, is still flagged (seen in round 2's savebite-singapore). Routes aren't matched across files.
+- Known gap: helpers that read the request body are not followed across files (v0.2).
 - How to recognize the builder: lovable-tagger (older Lovable), @lovable.dev/vite-tanstack-config (newer Lovable), .bolt/ folder (Bolt).
 - Idea for v0.2: debug endpoints/functions (like env-debug) that return environment variables.
 

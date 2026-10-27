@@ -72,6 +72,18 @@ export const KEY_PATTERNS: KeyPattern[] = [
   },
 ];
 
+// Example keys that AWS and Stripe publish in their own documentation. They
+// grant no access to anything, so they're never reported. Each key is split
+// in two so GitHub's secret scanner doesn't flag this file.
+const DOCUMENTED_EXAMPLE_KEYS = new Set([
+  "AKIA" + "IOSFODNN7EXAMPLE", // AWS docs
+  "AKIA" + "I44QH8DHBEXAMPLE", // AWS docs
+  "sk_test_" + "4eC39HqLyjWDarjtT1zdp7dc", // Stripe docs
+  "sk_test_" + "BQokikJOvBiI2HlWgH4olfQ2", // Stripe docs (older)
+]);
+
+export const isDocumentedExampleKey = (value: string) => DOCUMENTED_EXAMPLE_KEYS.has(value);
+
 // Three base64url chunks separated by dots; "eyJ" is base64 for '{"'.
 const JWT_REGEX = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 
@@ -100,7 +112,7 @@ export function findSecretKeys(text: string): KeyMatch[] {
   const matches: KeyMatch[] = [];
   for (const pattern of KEY_PATTERNS) {
     for (const match of text.matchAll(pattern.regex)) {
-      matches.push({ pattern, value: match[0] });
+      if (!isDocumentedExampleKey(match[0])) matches.push({ pattern, value: match[0] });
     }
   }
   for (const match of text.matchAll(JWT_REGEX)) {
