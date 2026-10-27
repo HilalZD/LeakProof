@@ -4,7 +4,6 @@ import { join } from "node:path";
 import pc from "picocolors";
 import { afterEach, describe, expect, it } from "vitest";
 import { run, useColor, type CliIo } from "../src/cli.js";
-import { WAITLIST_URL } from "../src/config.js";
 import { exitCodeFor, renderJson, renderReport, WIDTH, wrap } from "../src/report.js";
 import type { ScanResult } from "../src/scan.js";
 import type { Check, Finding, Severity } from "../src/types.js";
@@ -49,11 +48,12 @@ const result = (findings: Finding[], extra: Partial<ScanResult> = {}): ScanResul
   ...extra,
 });
 
-const render = (r: ScanResult, verbose = false) => renderReport(r, { colors: noColors, version: "9.9.9", verbose });
+const render = (r: ScanResult, verbose = false, waitlistUrl = "") =>
+  renderReport(r, { colors: noColors, version: "9.9.9", verbose, waitlistUrl });
 const lines = (text: string) => text.trimEnd().split("\n");
 
 describe("renderReport", () => {
-  it("clean result", () => {
+  it("clean result with no waitlist URL: no footer", () => {
     expect(render(result([]))).toBe(
       [
         "LeakProof v9.9.9 · scanning my-app",
@@ -64,10 +64,41 @@ describe("renderReport", () => {
         "  ✓ No secret keys in code",
         "  ✓ No secrets in committed .env files",
         "",
-        `Want 24/7 watching and AI fixes? → ${WAITLIST_URL}`,
+      ].join("\n"),
+    );
+  });
+
+  it("clean result with a waitlist URL: footer shown", () => {
+    expect(render(result([]), false, "https://example.com")).toBe(
+      [
+        "LeakProof v9.9.9 · scanning my-app",
+        "42 files checked in 1.2s",
+        "",
+        "✓ No leaks found",
+        "",
+        "  ✓ No secret keys in code",
+        "  ✓ No secrets in committed .env files",
+        "",
+        "Want 24/7 watching and AI fixes? → https://example.com",
         "",
       ].join("\n"),
     );
+  });
+
+  it("leaks with no waitlist URL: no footer and no trailing blank line", () => {
+    const out = render(result([finding("critical", ".env", 7)]));
+    expect(out).not.toContain("Want 24/7");
+    expect(out.endsWith("    → Fix it.\n")).toBe(true);
+  });
+
+  it("leaks with a waitlist URL: footer is the last line", () => {
+    const out = render(result([finding("critical", ".env", 7)]), false, "https://example.com");
+    expect(lines(out).at(-1)).toBe("Want 24/7 watching and AI fixes? → https://example.com");
+  });
+
+  it("uses WAITLIST_URL from config.ts by default, which is empty for now", () => {
+    const out = renderReport(result([]), { colors: noColors, version: "9.9.9" });
+    expect(out).not.toContain("Want 24/7");
   });
 
   it("mixed severities: summary lists only the severities present", () => {
@@ -83,7 +114,6 @@ describe("renderReport", () => {
     expect(out).toContain(
       ["  src/lib/ai.ts:1", "    OpenAI API key hardcoded: sk-proj-****W1xY", "    → Move this key."].join("\n"),
     );
-    expect(out).toContain(`Want 24/7 watching and AI fixes? → ${WAITLIST_URL}`);
   });
 
   it("only-medium result, singular wording", () => {
@@ -308,7 +338,7 @@ describe("renderReport", () => {
 
   it("shows skipped-check warnings after the findings", () => {
     const reason = "Not a git repository, so LeakProof can't tell whether .env files are committed.";
-    const out = render(result([finding("high", "a.ts", 1)], { skipped: [{ check: committedEnv, reason }] }));
+    const out = render(result([finding("high", "a.ts", 1)], { skipped: [{ check: committedEnv, reason }] }), false, "https://example.com");
 
     expect(out).toContain("⚠ Committed .env files skipped: Not a git repository, so LeakProof can't tell");
     expect(out.indexOf("⚠")).toBeGreaterThan(out.indexOf("a.ts:1"));

@@ -1,7 +1,7 @@
 {
   "name": "leakproof",
-  "version": "0.0.1",
-  "description": "Security scanner for apps built with AI tools (Lovable, Supabase, Stripe). Finds leaked keys and risky config before you ship.",
+  "version": "0.1.0",
+  "description": "Find the leaks AI coding tools leave behind. One command, no signup.",
   "type": "module",
   "bin": {
     "leakproof": "./dist/index.js"
@@ -20,12 +20,15 @@
   },
   "keywords": [
     "security",
-    "scanner",
-    "cli",
     "secrets",
+    "scanner",
+    "vibe-coding",
+    "lovable",
+    "bolt",
     "supabase",
     "stripe",
-    "lovable"
+    "cli",
+    "leak"
   ],
   "author": "Hilal Zeidan",
   "license": "MIT",

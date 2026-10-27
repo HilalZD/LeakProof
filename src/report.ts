@@ -10,6 +10,8 @@ export interface ReportOptions {
   colors: Colors;
   version: string;
   verbose?: boolean;
+  /** Footer link; empty means no footer. Defaults to WAITLIST_URL. */
+  waitlistUrl?: string;
 }
 
 export const WIDTH = 80;
@@ -94,7 +96,7 @@ export function countBySeverity(findings: Finding[]): Record<Severity, number> {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The human-readable report, ending in a newline. */
-export function renderReport(result: ScanResult, { colors: c, version, verbose = false }: ReportOptions): string {
+export function renderReport(result: ScanResult, { colors: c, version, verbose = false, waitlistUrl = WAITLIST_URL }: ReportOptions): string {
   const out: string[] = [];
   const folder = basename(result.projectPath) || result.projectPath;
   const seconds = Math.max(result.durationMs / 1000, 0.1).toFixed(1);
@@ -155,7 +157,11 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
     out.push("");
   }
 
-  out.push(c.dim(`Want 24/7 watching and AI fixes? → ${WAITLIST_URL}`));
+  if (waitlistUrl) {
+    out.push(c.dim(`Want 24/7 watching and AI fixes? → ${waitlistUrl}`));
+  } else {
+    while (out.at(-1) === "") out.pop(); // no blank line left over at the end
+  }
   return out.join("\n") + "\n";
 }
 
