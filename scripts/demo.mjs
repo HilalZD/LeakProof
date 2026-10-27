@@ -12,8 +12,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const app = process.argv[2] ?? "C:\\Users\\user\\Desktop\\notenest-three-and-free";
 
 const SHOTS = [
-  { branch: "broken", file: "docs/demo-leaks.svg", title: "leakproof scan", expectedExit: 1 },
-  { branch: "main", file: "docs/demo-clean.svg", title: "leakproof scan", expectedExit: 0 },
+  { branch: "broken", file: "docs/demo-leaks.svg", title: "npx @leakproof/cli scan", expectedExit: 1 },
+  { branch: "main", file: "docs/demo-clean.svg", title: "npx @leakproof/cli scan", expectedExit: 0 },
 ];
 
 // GitHub-dark-style palette for the ANSI colors picocolors uses.

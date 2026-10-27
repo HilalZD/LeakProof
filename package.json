@@ -1,5 +1,5 @@
 {
-  "name": "leakproof",
+  "name": "@leakproof/cli",
   "version": "0.1.0",
   "description": "Find the leaks AI coding tools leave behind. One command, no signup.",
   "type": "module",
@@ -41,6 +41,9 @@
   "homepage": "https://github.com/HilalZD/LeakProof#readme",
   "bugs": {
     "url": "https://github.com/HilalZD/LeakProof/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "commander": "^15.0.0",

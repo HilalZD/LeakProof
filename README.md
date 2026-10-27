@@ -13,13 +13,13 @@ And when your app is clean:
 Run it inside your project folder:
 
 ```sh
-npx leakproof scan
+npx @leakproof/cli scan
 ```
 
 Or point it at another folder:
 
 ```sh
-npx leakproof scan ./my-app
+npx @leakproof/cli scan ./my-app
 ```
 
 Requires Node.js 20 or newer.
@@ -104,7 +104,7 @@ LeakProof exits with a code your CI can act on:
 Add `--json` for machine-readable output:
 
 ```sh
-npx leakproof scan --json
+npx @leakproof/cli scan --json
 ```
 
 Minimal GitHub Actions workflow (`.github/workflows/leakproof.yml`):
@@ -121,7 +121,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-      - run: npx --yes leakproof scan
+      - run: npx --yes @leakproof/cli scan
 ```
 
 The job fails when leaks are found.

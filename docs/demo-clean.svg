@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="737" height="398" viewBox="0 0 737 398">
 <rect width="737" height="398" rx="10" fill="#0d1117"/>
 <circle cx="20" cy="18" r="6" fill="#ff5f56"/><circle cx="40" cy="18" r="6" fill="#ffbd2e"/><circle cx="60" cy="18" r="6" fill="#27c93f"/>
-<text x="368.5" y="22" text-anchor="middle" fill="#c9d1d9" fill-opacity="0.6" font-family="ui-sans-serif, -apple-system, 'Segoe UI', sans-serif" font-size="13">leakproof scan</text>
+<text x="368.5" y="22" text-anchor="middle" fill="#c9d1d9" fill-opacity="0.6" font-family="ui-sans-serif, -apple-system, 'Segoe UI', sans-serif" font-size="13">npx @leakproof/cli scan</text>
 <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#c9d1d9" xml:space="preserve">
 <text y="70"><tspan x="24.0" textLength="75.6" lengthAdjust="spacingAndGlyphs" font-weight="700">LeakProof</tspan><tspan x="99.6" textLength="159.6" lengthAdjust="spacingAndGlyphs"> v0.1.0 · scanning </tspan><tspan x="259.2" textLength="193.2" lengthAdjust="spacingAndGlyphs" font-weight="700">notenest-three-and-free</tspan></text>
-<text y="90"><tspan x="24.0" textLength="201.6" lengthAdjust="spacingAndGlyphs" fill-opacity="0.6">87 files checked in 0.5s</tspan></text>
+<text y="90"><tspan x="24.0" textLength="201.6" lengthAdjust="spacingAndGlyphs" fill-opacity="0.6">87 files checked in 0.4s</tspan></text>
 <text y="110"></text>
 <text y="130"><tspan x="24.0" textLength="134.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950" font-weight="700">✓ No leaks found</tspan><tspan x="158.4" textLength="25.2" lengthAdjust="spacingAndGlyphs"> · </tspan><tspan x="183.6" textLength="151.2" lengthAdjust="spacingAndGlyphs" fill="#79c0ff">1 low-risk warning</tspan></text>
 <text y="150"></text>
