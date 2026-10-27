@@ -40,6 +40,8 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Known gap: Rule 3 is skipped for example files, so a real non-localhost password in .env.example isn't caught.
 - Known gap: only Stripe webhooks are checked. Other providers (Lemon Squeezy, Paddle, PayPal) come later. A handler that reads the signature header but never actually compares it can be missed.
 - Known gap: a webhook handler that only uses event names imported from another file (e.g. a constants file) has no event name string of its own, so it isn't recognized as a handler.
+- How to recognize the builder: lovable-tagger (older Lovable), @lovable.dev/vite-tanstack-config (newer Lovable), .bolt/ folder (Bolt).
+- Idea for v0.2: debug endpoints/functions (like env-debug) that return environment variables.
 
 ## Expected results
 - notenest broken branch: 6 leaks (5 critical, 1 high), 0 low, exit 1. These are 1a, 1b, 2a, 2b, 2c and 3, with 0 decoys flagged.

@@ -10,6 +10,7 @@ const lineOf = (code: string) => code.split("\n").findIndex((l) => l.includes("/
 
 const UNVERIFIED = {
   "app/api/stripe/route.ts": `import { NextResponse } from "next/server";
+import Stripe from "stripe";
 
 export async function POST(req: Request) {
   const event = await req.json(); // <-- body
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
 }
 `,
   "pages/api/webhook.ts": `import type { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const event = req.body; // <-- body
@@ -32,6 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 `,
   "server/index.js": `const express = require("express");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 app.post("/webhook", express.json(), (req, res) => {
@@ -137,6 +140,36 @@ export async function POST(req: Request) {
 `,
 };
 
+// Regression: a real-world Paystack webhook (scan-lab round 1) that verifies
+// x-paystack-signature with HMAC-SHA512 and uses Paystack's "charge.success".
+const PAYSTACK = `import { createFileRoute } from "@tanstack/react-router";
+import { createHmac, timingSafeEqual } from "crypto";
+
+export const Route = createFileRoute("/api/public/paystack-webhook")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const secret = process.env.PAYSTACK_SECRET_KEY;
+        if (!secret) return new Response("Server not configured", { status: 500 });
+
+        const raw = await request.text();
+        const signature = request.headers.get("x-paystack-signature") ?? "";
+        const expected = createHmac("sha512", secret).update(raw).digest("hex");
+        const sig = Buffer.from(signature, "hex");
+        const exp = Buffer.from(expected, "hex");
+        if (sig.length !== exp.length || !timingSafeEqual(sig, exp)) {
+          return new Response("Invalid signature", { status: 401 });
+        }
+
+        const evt = JSON.parse(raw);
+        if (evt.event === "charge.success" && evt.data.status === "success") await creditWallet(evt);
+        return new Response("ok");
+      },
+    },
+  },
+});
+`;
+
 const NOT_HANDLERS = {
   "src/lib/stripe-events.ts": `export const HANDLED_EVENTS = [
   "checkout.session.completed",
@@ -193,10 +226,10 @@ describe("flags unverified webhook handlers", () => {
   return new Response("ok");
 }
 `;
-    const findings = await scan({ "a/route.ts": code, "b/route.ts": UNVERIFIED["app/api/stripe/route.ts"] });
+    const findings = await scan({ "a/stripe/route.ts": code, "b/route.ts": UNVERIFIED["app/api/stripe/route.ts"] });
     expect(findings.map((f) => [f.file, f.line])).toEqual([
-      ["a/route.ts", 2],
-      ["b/route.ts", 4],
+      ["a/stripe/route.ts", 2],
+      ["b/route.ts", 5],
     ]);
   });
 });
@@ -265,6 +298,17 @@ describe("stripComments", () => {
 describe("files that are not handlers", () => {
   it("event-name constants and frontend checkout code are not flagged", async () => {
     expect(await scan(NOT_HANDLERS)).toEqual([]);
+  });
+
+  it("a verified Paystack webhook using charge.success is not flagged", async () => {
+    expect(await scan({ "src/routes/api/public/paystack-webhook.ts": PAYSTACK })).toEqual([]);
+  });
+
+  it("needs a Stripe marker in the file or its path", async () => {
+    // Same unverified handler, with every mention of Stripe removed.
+    const code = UNVERIFIED["app/api/stripe/route.ts"].replace('import Stripe from "stripe";\n', "");
+    expect(await scan({ "app/api/payments/route.ts": code })).toEqual([]);
+    expect(await scan({ "app/api/stripe/route.ts": code })).toHaveLength(1); // marker in the path
   });
 
   it("skips test files and __tests__ folders", async () => {

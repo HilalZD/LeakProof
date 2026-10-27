@@ -12,6 +12,11 @@ const TEST_FILE = /\.(?:test|spec)\./i;
 // The quotes keep code like `invoice.status` from counting.
 const EVENT_NAME = /["'`](?:checkout\.session|customer\.subscription|invoice|payment_intent|charge)\.[a-z_.]+["'`]/;
 
+// Other providers reuse names like "charge.success" (Paystack), so the file
+// or its path must also mention Stripe: an import of "stripe", api.stripe.com,
+// "stripe-signature", a stripe-webhook route, or constructEvent.
+const STRIPE_MARKER = /stripe|constructEvent/i;
+
 // Reading the body of an incoming request. Every pattern needs req/request
 // (or a raw-body helper), so reading a response with res.json() doesn't count.
 const BODY_READS = [
@@ -94,6 +99,7 @@ export function isVerified(code: string): boolean {
 /** The finding for one file, or undefined if it isn't an unverified Stripe webhook handler. */
 export function scanContent(file: string, content: string): Finding | undefined {
   if (!EVENT_NAME.test(content)) return undefined;
+  if (!STRIPE_MARKER.test(file) && !STRIPE_MARKER.test(content)) return undefined;
 
   const lines = content.split(/\r?\n/);
   const bodyLine = lines.findIndex((line) => BODY_READS.some((p) => p.test(line)));
