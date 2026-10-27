@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="737" height="398" viewBox="0 0 737 398">
+<rect width="737" height="398" rx="10" fill="#0d1117"/>
+<circle cx="20" cy="18" r="6" fill="#ff5f56"/><circle cx="40" cy="18" r="6" fill="#ffbd2e"/><circle cx="60" cy="18" r="6" fill="#27c93f"/>
+<text x="368.5" y="22" text-anchor="middle" fill="#c9d1d9" fill-opacity="0.6" font-family="ui-sans-serif, -apple-system, 'Segoe UI', sans-serif" font-size="13">leakproof scan</text>
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#c9d1d9" xml:space="preserve">
+<text y="70"><tspan x="24.0" textLength="75.6" lengthAdjust="spacingAndGlyphs" font-weight="700">LeakProof</tspan><tspan x="99.6" textLength="159.6" lengthAdjust="spacingAndGlyphs"> v0.1.0 · scanning </tspan><tspan x="259.2" textLength="193.2" lengthAdjust="spacingAndGlyphs" font-weight="700">notenest-three-and-free</tspan></text>
+<text y="90"><tspan x="24.0" textLength="201.6" lengthAdjust="spacingAndGlyphs" fill-opacity="0.6">87 files checked in 0.5s</tspan></text>
+<text y="110"></text>
+<text y="130"><tspan x="24.0" textLength="134.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950" font-weight="700">✓ No leaks found</tspan><tspan x="158.4" textLength="25.2" lengthAdjust="spacingAndGlyphs"> · </tspan><tspan x="183.6" textLength="151.2" lengthAdjust="spacingAndGlyphs" fill="#79c0ff">1 low-risk warning</tspan></text>
+<text y="150"></text>
+<text y="170"><tspan x="24.0" textLength="16.8" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="40.8" textLength="8.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">✓</tspan><tspan x="49.2" textLength="285.6" lengthAdjust="spacingAndGlyphs"> Stripe webhooks verify signatures</tspan></text>
+<text y="190"><tspan x="24.0" textLength="16.8" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="40.8" textLength="8.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">✓</tspan><tspan x="49.2" textLength="193.2" lengthAdjust="spacingAndGlyphs"> No secret keys in code</tspan></text>
+<text y="210"><tspan x="24.0" textLength="16.8" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="40.8" textLength="8.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">✓</tspan><tspan x="49.2" textLength="294.0" lengthAdjust="spacingAndGlyphs"> No secrets in committed .env files</tspan></text>
+<text y="230"></text>
+<text y="250"><tspan x="24.0" textLength="672.0" lengthAdjust="spacingAndGlyphs" fill="#79c0ff" font-weight="700">── LOW (1) ─────────────────────────────────────────────────────────────────────</tspan></text>
+<text y="270"></text>
+<text y="290"><tspan x="24.0" textLength="16.8" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="40.8" textLength="33.6" lengthAdjust="spacingAndGlyphs" font-weight="700">.env</tspan></text>
+<text y="310"><tspan x="24.0" textLength="663.6" lengthAdjust="spacingAndGlyphs">    .env is committed to git. It's safe right now (public values only), but any</tspan></text>
+<text y="330"><tspan x="24.0" textLength="327.6" lengthAdjust="spacingAndGlyphs">    secret you add here becomes public.</tspan></text>
+<text y="350"><tspan x="24.0" textLength="33.6" lengthAdjust="spacingAndGlyphs">    </tspan><tspan x="57.6" textLength="8.4" lengthAdjust="spacingAndGlyphs" fill="#79c0ff">→</tspan><tspan x="66.0" textLength="579.6" lengthAdjust="spacingAndGlyphs"> Keep secrets out of this file: store them in your platform's secrets</tspan></text>
+<text y="370"><tspan x="24.0" textLength="672.0" lengthAdjust="spacingAndGlyphs">      manager (e.g. Lovable or Supabase secrets) or in a git-ignored .env.local.</tspan></text>
+</g>
+</svg>

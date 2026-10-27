@@ -2,7 +2,11 @@
 
 **Find the leaks AI coding tools leave behind. One command, no signup.**
 
-![LeakProof demo](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo.gif)
+![LeakProof report showing 6 leaks: an unverified Stripe webhook, a hardcoded OpenAI key, secrets in a committed .env, and a Vite-exposed Stripe key](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo-leaks.svg)
+
+And when your app is clean:
+
+![LeakProof report showing no leaks and one low-risk warning](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo-clean.svg)
 
 ## Quick start
 
