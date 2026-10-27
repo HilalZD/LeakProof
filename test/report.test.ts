@@ -195,6 +195,18 @@ describe("renderReport", () => {
       expect(lines(render(result(findings)))[3]).toBe("✗ 6 leaks found · 5 critical · 1 high · 1 low-risk warning");
     });
 
+    it("uses bright blue, not plain blue, for the summary text, divider and arrow", () => {
+      const out = renderReport(result([low()]), { colors: pc.createColors(true), version: "1" });
+      const BRIGHT_BLUE = "\u001b[94m";
+      const BLUE = "\u001b[34m";
+      const line = (start: string) => out.split("\n").find((l) => l.replace(/\u001b\[\d+m/g, "").startsWith(start))!;
+
+      expect(line("✓ No leaks found")).toContain(`${BRIGHT_BLUE}1 low-risk warning`);
+      expect(line("── LOW (1)")).toContain(BRIGHT_BLUE);
+      expect(line("    → Keep secrets out.")).toContain(`${BRIGHT_BLUE}→`);
+      expect(out).not.toContain(BLUE);
+    });
+
     it("LOW section comes after MEDIUM and has no line number", () => {
       const out = render(result([low(), finding("medium", ".env.local", 3)]));
       expect(out.indexOf("── MEDIUM (1)")).toBeLessThan(out.indexOf("── LOW (1)"));

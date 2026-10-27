@@ -43,7 +43,7 @@ function severityColor(c: Colors, severity: Severity): (text: string) => string 
   if (severity === "critical") return c.red;
   if (severity === "high") return c.yellow;
   if (severity === "medium") return c.cyan;
-  return c.blue;
+  return c.blueBright; // plain blue is hard to read on dark terminals
 }
 
 /**
@@ -115,7 +115,7 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
 
   const counts = countBySeverity(result.findings);
   const leaks = result.findings.filter(isLeak);
-  const warnings = counts.low > 0 ? [c.blue(plural(counts.low, "low-risk warning"))] : [];
+  const warnings = counts.low > 0 ? [severityColor(c, "low")(plural(counts.low, "low-risk warning"))] : [];
   if (leaks.length === 0) {
     out.push([c.green(c.bold("✓ No leaks found")), ...warnings].join(" · "));
     out.push("");
