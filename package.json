@@ -17,7 +17,8 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "demo": "npm run build && node scripts/demo.mjs"
+    "demo": "npm run build && node scripts/demo.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "security",
