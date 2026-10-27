@@ -12,9 +12,16 @@ import type { Check, Finding, Severity } from "../src/types.js";
 const noColors = pc.createColors(false);
 const ANSI = /\u001b\[/;
 
-const check = (id: string, name: string): Check => ({ id, name, severity: "critical", run: async () => [] });
-const leakedKeys = check("leaked-keys", "Leaked secret keys in code");
-const committedEnv = check("committed-env", "Committed .env files");
+const check = (id: string, name: string, passedLabel = `${name} passed`): Check => ({
+  id,
+  name,
+  passedLabel,
+  severity: "critical",
+  run: async () => [],
+});
+const leakedKeys = check("leaked-keys", "Leaked secret keys in code", "No secret keys in code");
+const committedEnv = check("committed-env", "Committed .env files", "No secrets in committed .env files");
+const stripeWebhook = check("stripe-webhook", "Stripe webhook signature verification", "Stripe webhooks verify signatures");
 
 const finding = (
   severity: Severity,
@@ -53,6 +60,9 @@ describe("renderReport", () => {
         "42 files checked in 1.2s",
         "",
         "✓ No leaks found",
+        "",
+        "  ✓ No secret keys in code",
+        "  ✓ No secrets in committed .env files",
         "",
         `Want 24/7 watching and AI fixes? → ${WAITLIST_URL}`,
         "",
@@ -168,6 +178,78 @@ describe("renderReport", () => {
     });
   });
 
+  describe("LOW warnings", () => {
+    const low = (file = ".env") => finding("low", file, 0, `${file} is committed to git.`, "Keep secrets out.", "committed-env");
+
+    it("only LOW: no leaks, singular and plural warning wording", () => {
+      expect(lines(render(result([low()])))[3]).toBe("✓ No leaks found · 1 low-risk warning");
+      expect(lines(render(result([low(".env"), low(".env.production")])))[3]).toBe("✓ No leaks found · 2 low-risk warnings");
+    });
+
+    it("leaks plus LOW: LOW isn't counted as a leak", () => {
+      const findings = [
+        ...Array.from({ length: 5 }, (_, i) => finding("critical", ".env", i + 1)),
+        finding("high", "src/lib/payments.ts", 14),
+        low(),
+      ];
+      expect(lines(render(result(findings)))[3]).toBe("✗ 6 leaks found · 5 critical · 1 high · 1 low-risk warning");
+    });
+
+    it("LOW section comes after MEDIUM and has no line number", () => {
+      const out = render(result([low(), finding("medium", ".env.local", 3)]));
+      expect(out.indexOf("── MEDIUM (1)")).toBeLessThan(out.indexOf("── LOW (1)"));
+      expect(out).toContain("── LOW (1) ──");
+      expect(lines(out)).toContain("  .env");
+    });
+  });
+
+  describe("checklist on clean results", () => {
+    const allChecks = [leakedKeys, committedEnv, stripeWebhook];
+
+    it("lists every passed check, in report order, under the summary", () => {
+      const out = render(result([], { checks: allChecks }));
+      expect(lines(out).slice(3, 8)).toEqual([
+        "✓ No leaks found",
+        "",
+        "  ✓ Stripe webhooks verify signatures",
+        "  ✓ No secret keys in code",
+        "  ✓ No secrets in committed .env files",
+      ]);
+    });
+
+    it("is shown when the only findings are LOW, and a LOW doesn't stop a check passing", () => {
+      const low = finding("low", ".env", 0, "safe for now", "Keep secrets out.", "committed-env");
+      const out = render(result([low], { checks: allChecks }));
+      expect(out).toContain("  ✓ No secrets in committed .env files");
+      expect(out.indexOf("✓ No secrets in committed .env files")).toBeLessThan(out.indexOf("── LOW"));
+    });
+
+    it("never lists a skipped check as passed", () => {
+      const reason = "Not a git repository.";
+      const out = render(result([], { checks: allChecks, skipped: [{ check: committedEnv, reason }] }));
+      expect(out).not.toContain("No secrets in committed .env files");
+      expect(out).toContain("  ✓ No secret keys in code");
+      expect(out).toContain(`⚠ Committed .env files skipped: ${reason}`);
+    });
+
+    it("is hidden when there are leaks", () => {
+      const out = render(result([finding("high", "a.ts", 1)], { checks: allChecks }));
+      expect(out).not.toContain("Stripe webhooks verify signatures");
+      expect(out).not.toContain("No secret keys in code");
+    });
+  });
+
+  describe("exitCodeFor", () => {
+    it("0 for no findings or LOW only, 1 as soon as there is a MEDIUM or worse", () => {
+      const low = finding("low", ".env", 0);
+      expect(exitCodeFor(result([]))).toBe(0);
+      expect(exitCodeFor(result([low]))).toBe(0);
+      expect(exitCodeFor(result([low, finding("medium", ".env.local", 1)]))).toBe(1);
+      expect(exitCodeFor(result([finding("high", "a.ts", 1)]))).toBe(1);
+      expect(exitCodeFor(result([finding("critical", "a.ts", 1)]))).toBe(1);
+    });
+  });
+
   it("dividers are exactly the report width", () => {
     const out = render(result([finding("critical", "a.ts", 1)]));
     const divider = lines(out).find((l) => l.startsWith("── CRITICAL"))!;
@@ -239,7 +321,7 @@ describe("renderReport", () => {
 
 describe("renderJson", () => {
   it("parses, matches the shape, and has no colors or footer", () => {
-    const findings = [finding("critical", ".env", 7), finding("high", "src/a.ts", 2)];
+    const findings = [finding("critical", ".env", 7), finding("high", "src/a.ts", 2), finding("low", ".env", 0)];
     const text = renderJson(result(findings, { skipped: [{ check: committedEnv, reason: "No git." }] }), "9.9.9");
     const json = JSON.parse(text);
 
@@ -248,7 +330,7 @@ describe("renderJson", () => {
       path: join(tmpdir(), "my-app"),
       filesChecked: 42,
       durationMs: 1234,
-      summary: { total: 2, critical: 1, high: 1, medium: 0, low: 0, info: 0 },
+      summary: { total: 3, leaks: 2, critical: 1, high: 1, medium: 0, low: 1 },
       findings,
       skipped: [{ checkId: "committed-env", name: "Committed .env files", reason: "No git." }],
     });

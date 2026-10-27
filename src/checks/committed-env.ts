@@ -96,9 +96,6 @@ export function classify(entry: EnvEntry, exampleFile: boolean): Secret | undefi
   return undefined;
 }
 
-const viteNote = (names: string[]) =>
-  names.some((n) => n.startsWith("VITE_")) ? " The VITE_ prefix also ships it to the browser." : "";
-
 interface GitResult {
   code: number;
   stdout: string;
@@ -152,53 +149,64 @@ async function gitStatus(projectPath: string, files: string[]) {
 export const committedEnvCheck: Check = {
   id: CHECK_ID,
   name: "Committed .env files",
+  passedLabel: "No secrets in committed .env files",
   severity: "critical",
   async run(projectPath, context) {
-    const secretsByFile = new Map<string, Secret[]>();
-    const files: string[] = [];
+    const envFiles: { file: string; example: boolean; entries: number; secrets: Secret[] }[] = [];
     for await (const filePath of walkFiles(projectPath, isEnvFile, context)) {
       const file = toProjectPath(projectPath, filePath);
-      files.push(file);
-      const exampleFile = EXAMPLE_FILE.test(basename(file));
-      const secrets = parseEnv(await readFile(filePath, "utf8"))
-        .map((entry) => classify(entry, exampleFile))
-        .filter((s): s is Secret => s !== undefined);
-      if (secrets.length > 0) secretsByFile.set(file, secrets);
+      const example = EXAMPLE_FILE.test(basename(file));
+      const entries = parseEnv(await readFile(filePath, "utf8"));
+      const secrets = entries.map((entry) => classify(entry, example)).filter((s): s is Secret => s !== undefined);
+      envFiles.push({ file, example, entries: entries.length, secrets });
     }
-    if (files.length === 0) return [];
+    if (envFiles.length === 0) return [];
 
-    const { trackedFiles, ignoredFiles } = await gitStatus(projectPath, files);
+    const { trackedFiles, ignoredFiles } = await gitStatus(projectPath, envFiles.map((f) => f.file));
     const findings: Finding[] = [];
 
-    for (const [file, secrets] of secretsByFile) {
-      const example = EXAMPLE_FILE.test(basename(file));
+    for (const { file, example, entries, secrets } of envFiles) {
+      // Vite loads .env, .env.local, .env.[mode] and .env.[mode].local, never example files.
+      const shipped = (name: string) => !example && name.startsWith("VITE_");
 
-      if (trackedFiles.has(file)) {
+      if (trackedFiles.has(file) && secrets.length > 0) {
+        const fix = example
+          ? `Replace the real value in ${file} with a placeholder and rotate this key; it stays in git history even after deletion.`
+          : `Remove ${file} from git (git rm --cached ${file}), add ${file} to .gitignore, and rotate this key; it stays in git history even after deletion.`;
         for (const { entry, masked } of secrets) {
-          const fix = example
-            ? `Replace the real value in ${file} with a placeholder and rotate this key; it stays in git history even after deletion.`
-            : `Remove ${file} from git (git rm --cached ${file}), add ${file} to .gitignore, and rotate this key; it stays in git history even after deletion.`;
+          const where = shipped(entry.name) ? "committed to git and shipped to the browser" : "committed to git";
           findings.push({
             checkId: CHECK_ID,
             severity: "critical",
             file,
             line: entry.line,
-            message: `${entry.name} is committed to git: ${masked}`,
-            fix: fix + viteNote([entry.name]),
+            message: `${entry.name} is ${where}: ${masked}`,
+            fix,
           });
         }
-      } else if (!ignoredFiles.has(file)) {
-        const names = secrets.map((s) => s.entry.name);
-        const fix = example
-          ? `Replace the real value in ${file} with a placeholder before it gets committed.`
-          : `Add ${file} to .gitignore before it gets committed.`;
+      } else if (trackedFiles.has(file)) {
+        // Safe today, but this is where someone will paste the next secret.
+        if (example || entries === 0) continue;
+        findings.push({
+          checkId: CHECK_ID,
+          severity: "low",
+          file,
+          message: `${file} is committed to git. It's safe right now (public values only), but any secret you add here becomes public.`,
+          fix: "Keep secrets out of this file: store them in your platform's secrets manager (e.g. Lovable or Supabase secrets) or in a git-ignored .env.local.",
+        });
+      } else if (secrets.length > 0 && !ignoredFiles.has(file)) {
+        const list = secrets.map((s) => `${s.entry.name}=${s.masked}`).join(", ");
+        const vite = secrets.map((s) => s.entry.name).filter(shipped);
+        const viteSentence = vite.length > 0 ? ` ${vite.join(", ")} ${vite.length === 1 ? "is" : "are"} also shipped to the browser.` : "";
         findings.push({
           checkId: CHECK_ID,
           severity: "medium",
           file,
           line: secrets[0].entry.line,
-          message: `${file} has ${names.length} secret${names.length === 1 ? "" : "s"} (${secrets.map((s) => `${s.entry.name}=${s.masked}`).join(", ")}) and is not in .gitignore, one git add away from being committed`,
-          fix: fix + viteNote(names),
+          message: `${file} has ${secrets.length} secret${secrets.length === 1 ? "" : "s"} (${list}) and is not in .gitignore, one git add away from being committed.${viteSentence}`,
+          fix: example
+            ? `Replace the real value in ${file} with a placeholder before it gets committed.`
+            : `Add ${file} to .gitignore before it gets committed.`,
         });
       }
     }

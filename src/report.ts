@@ -14,7 +14,11 @@ export interface ReportOptions {
 
 export const WIDTH = 80;
 
-const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
+const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low"];
+
+/** Leaks fail the scan; LOW findings are warnings and don't. */
+const LEAK_SEVERITIES: Severity[] = ["critical", "high", "medium"];
+export const isLeak = (finding: Finding) => LEAK_SEVERITIES.includes(finding.severity);
 
 // Within a severity group, findings are shown in this check order; any other
 // check comes after these.
@@ -39,7 +43,7 @@ function severityColor(c: Colors, severity: Severity): (text: string) => string 
   if (severity === "critical") return c.red;
   if (severity === "high") return c.yellow;
   if (severity === "medium") return c.cyan;
-  return c.dim;
+  return c.blue;
 }
 
 /**
@@ -110,14 +114,25 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
   }
 
   const counts = countBySeverity(result.findings);
-  if (result.findings.length === 0) {
-    out.push(c.green(c.bold("✓ No leaks found")));
+  const leaks = result.findings.filter(isLeak);
+  const warnings = counts.low > 0 ? [c.blue(plural(counts.low, "low-risk warning"))] : [];
+  if (leaks.length === 0) {
+    out.push([c.green(c.bold("✓ No leaks found")), ...warnings].join(" · "));
+    out.push("");
+
+    // Clean result: show what passed. Skipped checks never count as passed.
+    const passed = [...result.checks]
+      .sort((a, b) => checkRank(a.id) - checkRank(b.id))
+      .filter((check) => !result.skipped.some((s) => s.check === check));
+    if (passed.length > 0) {
+      for (const check of passed) out.push(`  ${c.green("✓")} ${check.passedLabel}`);
+      out.push("");
+    }
   } else {
-    const parts = SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => severityColor(c, s)(`${counts[s]} ${s}`));
-    const found = `${plural(result.findings.length, "leak")} found`;
-    out.push([c.red(c.bold(`✗ ${found}`)), ...parts].join(" · "));
+    const parts = LEAK_SEVERITIES.filter((s) => counts[s] > 0).map((s) => severityColor(c, s)(`${counts[s]} ${s}`));
+    out.push([c.red(c.bold(`✗ ${plural(leaks.length, "leak")} found`)), ...parts, ...warnings].join(" · "));
+    out.push("");
   }
-  out.push("");
 
   for (const severity of SEVERITY_ORDER) {
     const group = sortForReport(result.findings.filter((f) => f.severity === severity));
@@ -153,7 +168,7 @@ export function renderJson(result: ScanResult, version: string): string {
       path: result.projectPath,
       filesChecked: result.filesChecked,
       durationMs: result.durationMs,
-      summary: { total: result.findings.length, ...counts },
+      summary: { total: result.findings.length, leaks: result.findings.filter(isLeak).length, ...counts },
       findings: result.findings,
       skipped: result.skipped.map(({ check, reason }) => ({ checkId: check.id, name: check.name, reason })),
     },
@@ -162,7 +177,7 @@ export function renderJson(result: ScanResult, version: string): string {
   ) + "\n";
 }
 
-/** 0 = no findings, 1 = findings. (2, the scanner failing, is decided by the CLI.) */
+/** 0 = no leaks (LOW warnings allowed), 1 = leaks. (2, the scanner failing, is decided by the CLI.) */
 export function exitCodeFor(result: ScanResult): 0 | 1 {
-  return result.findings.length > 0 ? 1 : 0;
+  return result.findings.some(isLeak) ? 1 : 0;
 }

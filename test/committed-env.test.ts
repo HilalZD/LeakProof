@@ -199,10 +199,12 @@ describe("committedEnvCheck in real git repos", () => {
       [5, "critical"],
     ]);
     expect(findings[0].message).toBe("STRIPE_SECRET_KEY is committed to git: sk_test_****yyyy");
-    expect(findings[0].fix).toBe(
-      "Remove .env from git (git rm --cached .env), add .env to .gitignore, and rotate this key; it stays in git history even after deletion.",
-    );
-    expect(findings[2].fix).toMatch(/The VITE_ prefix also ships it to the browser\.$/);
+    expect(findings[2].message).toBe("VITE_STRIPE_SECRET_KEY is committed to git and shipped to the browser: sk_test_****yyyy");
+
+    // Every line in the file shares one fix, so the report can print it once.
+    const fix =
+      "Remove .env from git (git rm --cached .env), add .env to .gitignore, and rotate this key; it stays in git history even after deletion.";
+    expect(findings.map((f) => f.fix)).toEqual([fix, fix, fix]);
   });
 
   it("tracked .env that is also in .gitignore is still CRITICAL", async () => {
@@ -229,11 +231,18 @@ describe("committedEnvCheck in real git repos", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ severity: "medium", file: ".env.local", line: 3 });
     expect(findings[0].message).toContain("3 secrets (STRIPE_SECRET_KEY=sk_test_****yyyy, SUPABASE_SERVICE_ROLE_KEY=");
-    expect(findings[0].message).toContain("not in .gitignore, one git add away from being committed");
-    expect(findings[0].fix).toBe("Add .env.local to .gitignore before it gets committed. The VITE_ prefix also ships it to the browser.");
+    expect(findings[0].message).toMatch(
+      /not in \.gitignore, one git add away from being committed\. VITE_STRIPE_SECRET_KEY is also shipped to the browser\.$/,
+    );
+    expect(findings[0].fix).toBe("Add .env.local to .gitignore before it gets committed.");
   });
 
-  it("a .env with only safe values: no findings, tracked or not", async () => {
+  it("MEDIUM without VITE_ secrets has no browser sentence", async () => {
+    const findings = await committedEnvCheck.run(await project({ ".env.local": `STRIPE_SECRET_KEY=${STRIPE_TEST}` }));
+    expect(findings[0].message).toMatch(/one git add away from being committed\.$/);
+  });
+
+  describe("LOW: committed .env with only safe values", () => {
     const safe = [
       'SUPABASE_PROJECT_ID="xbqofkbhoapvf"',
       `SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE}"`,
@@ -241,9 +250,55 @@ describe("committedEnvCheck in real git repos", () => {
       `SUPABASE_ANON_KEY=${ANON}`,
       "API_SECRET=your-secret-here",
     ].join("\n");
-    expect(await committedEnvCheck.run(await project({ ".env": safe }, { commit: [".env"] }))).toEqual([]);
+
+    it("tracked + safe: one LOW finding for the file, without git rm advice", async () => {
+      const findings = await committedEnvCheck.run(await project({ ".env": safe }, { commit: [".env"] }));
+      expect(findings).toEqual([
+        {
+          checkId: "committed-env",
+          severity: "low",
+          file: ".env",
+          message: ".env is committed to git. It's safe right now (public values only), but any secret you add here becomes public.",
+          fix: "Keep secrets out of this file: store them in your platform's secrets manager (e.g. Lovable or Supabase secrets) or in a git-ignored .env.local.",
+        },
+      ]);
+      expect(findings[0].fix).not.toContain("git rm");
+    });
+
+    it("uses the real file name", async () => {
+      const findings = await committedEnvCheck.run(await project({ ".env.production": safe }, { commit: [".env.production"] }));
+      expect(findings[0].message).toMatch(/^\.env\.production is committed to git\./);
+    });
+
+    it("tracked + secrets: only CRITICAL findings, never LOW", async () => {
+      const findings = await committedEnvCheck.run(await project({ ".env": `${safe}\nSTRIPE_SECRET_KEY=${STRIPE_TEST}` }, { commit: [".env"] }));
+      expect(findings.map((f) => f.severity)).toEqual(["critical"]);
+    });
+
+    it("tracked example file: no LOW", async () => {
+      expect(await committedEnvCheck.run(await project({ ".env.example": safe }, { commit: [".env.example"] }))).toEqual([]);
+    });
+
+    it("tracked but empty or comments only: no LOW", async () => {
+      expect(await committedEnvCheck.run(await project({ ".env": "# nothing here\n\n" }, { commit: [".env"] }))).toEqual([]);
+    });
+
+    it("untracked, ignored or not: no LOW", async () => {
+      expect(await committedEnvCheck.run(await project({ ".env": safe }))).toEqual([]);
+      await rm(dir, { recursive: true, force: true });
+      expect(await committedEnvCheck.run(await project({ ".env": safe, ".gitignore": ".env\n" }))).toEqual([]);
+    });
+  });
+
+  it("example files never get the 'shipped to the browser' wording", async () => {
+    const example = `VITE_STRIPE_SECRET_KEY=${STRIPE_TEST}`;
+    const tracked = await committedEnvCheck.run(await project({ ".env.example": example }, { commit: [".env.example"] }));
     await rm(dir, { recursive: true, force: true });
-    expect(await committedEnvCheck.run(await project({ ".env": safe }))).toEqual([]);
+    const untracked = await committedEnvCheck.run(await project({ ".env.example": example }));
+
+    expect(tracked).toHaveLength(1);
+    expect(untracked).toHaveLength(1);
+    for (const finding of [...tracked, ...untracked]) expect(finding.message).not.toContain("browser");
   });
 
   it("tracked example files are only flagged for a real-shaped key", async () => {

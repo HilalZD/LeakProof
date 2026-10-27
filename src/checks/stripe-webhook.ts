@@ -108,6 +108,7 @@ const isScriptFile = (name: string) =>
 export const stripeWebhookCheck: Check = {
   id: CHECK_ID,
   name: "Stripe webhook signature verification",
+  passedLabel: "Stripe webhooks verify signatures",
   severity: "critical",
   async run(projectPath, context) {
     const findings: Finding[] = [];

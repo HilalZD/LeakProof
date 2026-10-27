@@ -1,4 +1,5 @@
-export type Severity = "critical" | "high" | "medium" | "low" | "info";
+/** critical, high and medium are leaks; low is a warning that doesn't fail the scan. */
+export type Severity = "critical" | "high" | "medium" | "low";
 
 /** One problem found by a check. */
 export interface Finding {
@@ -20,6 +21,8 @@ export interface Check {
   id: string;
   /** Human-readable name shown in the report. */
   name: string;
+  /** Shown as a ✓ line on clean results, e.g. "No secret keys in code". */
+  passedLabel: string;
   /** Default severity of findings from this check. */
   severity: Severity;
   run(projectPath: string, context?: ScanContext): Promise<Finding[]>;

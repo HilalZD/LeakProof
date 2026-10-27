@@ -50,6 +50,7 @@ export function scanContent(file: string, content: string): Finding[] {
 export const leakedKeysCheck: Check = {
   id: CHECK_ID,
   name: "Leaked secret keys in code",
+  passedLabel: "No secret keys in code",
   severity: "critical",
   async run(projectPath, context) {
     const findings: Finding[] = [];

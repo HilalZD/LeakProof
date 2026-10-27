@@ -42,5 +42,5 @@ Supabase files: the other src/integrations/supabase/* files only reference sb_pu
 - Known gap: a webhook handler that only uses event names imported from another file (e.g. a constants file) has no event name string of its own, so it isn't recognized as a handler.
 
 ## Expected results
-- notenest main branch: 0 issues
-- notenest broken branch: 6 issues (1a, 1b, 2a, 2b, 2c, 3), 0 decoys flagged
+- notenest broken branch: 6 leaks (5 critical, 1 high), 0 low, exit 1. These are 1a, 1b, 2a, 2b, 2c and 3, with 0 decoys flagged.
+- notenest main branch: 0 leaks, 1 low-risk warning, exit 0. The warning is the committed .env with public values only.
