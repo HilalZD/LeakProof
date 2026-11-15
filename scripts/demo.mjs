@@ -1,7 +1,8 @@
 // Generates the README demo images (docs/demo-leaks.svg and docs/demo-clean.svg)
 // by running the built scanner with colors on against the NoteNest test app.
 //
-// Usage: npm run build && npm run demo [-- <path to test app>]
+// Usage: npm run build && npm run demo -- <path to the NoteNest test app>
+//   e.g. npm run demo -- ../notenest-three-and-free
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -9,7 +10,11 @@ import { fileURLToPath } from "node:url";
 import Anser from "anser";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const app = process.argv[2] ?? "C:\\Users\\user\\Desktop\\notenest-three-and-free";
+const app = process.argv[2];
+if (!app) {
+  console.error("Usage: npm run demo -- <path to the NoteNest test app>  (e.g. ../notenest-three-and-free)");
+  process.exit(1);
+}
 
 const SHOTS = [
   { branch: "broken", file: "docs/demo-leaks.svg", title: "npx @leakproof/cli scan", expectedExit: 1 },

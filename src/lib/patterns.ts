@@ -1,4 +1,20 @@
+import { createHash } from "node:crypto";
 import type { Severity } from "../types.js";
+
+const TEST_KEY = /(?:^|[^A-Za-z0-9])(?:sk|rk)_test_/;
+
+/** Stripe test keys (sk_test_, rk_test_) can't move real money, so they're reported one level lower. */
+export const isTestKey = (value: string) => TEST_KEY.test(value);
+
+/**
+ * An in-memory identity for a secret value, so findings of the same secret can
+ * be grouped. Only a truncated hash, never the value; it must never be written
+ * to JSON output, files or telemetry.
+ */
+export const secretValueId = (value: string) => `value:${createHash("sha256").update(value).digest("hex").slice(0, 24)}`;
+
+/** The identity of a secret by the env var that holds it. */
+export const secretEnvId = (name: string) => `env:${name}`;
 
 // Shared by every key pattern: the character before the key must not be part
 // of a word, so "task-..." is never read as "sk-...".
@@ -85,9 +101,9 @@ const DOCUMENTED_EXAMPLE_KEYS = new Set([
 export const isDocumentedExampleKey = (value: string) => DOCUMENTED_EXAMPLE_KEYS.has(value);
 
 // Three base64url chunks separated by dots; "eyJ" is base64 for '{"'.
-const JWT_REGEX = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+export const JWT_REGEX = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 
-const SERVICE_ROLE_JWT: Omit<KeyPattern, "regex"> = {
+export const SERVICE_ROLE_JWT: Omit<KeyPattern, "regex"> = {
   name: "Supabase service_role key",
   severity: "critical",
   fix: "Use the anon or publishable key in frontend code, keep the service_role key server-side, and rotate it now.",

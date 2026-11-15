@@ -1,0 +1,28 @@
+name: Leakproof
+description: Find the leaks AI coding tools leave behind. Runs locally on the runner, sends nothing.
+author: Hilal Zeidan
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  fail-on:
+    description: "Fail the job for findings at this severity or worse: critical, high, medium or low."
+    required: false
+    default: medium
+  path:
+    description: Folder to scan, relative to the repository root.
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - name: Scan with Leakproof
+      shell: bash
+      # Inputs go through env vars, never straight into the script, so a
+      # crafted input can't inject shell commands.
+      env:
+        LEAKPROOF_PATH: ${{ inputs.path }}
+        LEAKPROOF_FAIL_ON: ${{ inputs.fail-on }}
+      run: npx --yes @leakproof/cli@0.2.0 "$LEAKPROOF_PATH" --format github --fail-on "$LEAKPROOF_FAIL_ON"

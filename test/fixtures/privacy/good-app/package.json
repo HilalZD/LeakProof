@@ -1,0 +1,11 @@
+{
+  "name": "fittrack-good",
+  "private": true,
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "posthog-js": "^1.160.0",
+    "vanilla-cookieconsent": "^3.0.1"
+  }
+}

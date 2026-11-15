@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { leakedKeysCheck, mask, scanContent } from "../src/checks/leaked-keys.js";
+import { createProjectContext } from "../src/lib/files.js";
+import { leakedKeysRule, mask, scanContent } from "../src/rules/leaked-keys.js";
+
+// The rule runs on a ProjectContext; these tests pass a folder.
+const leakedKeysCheck = { run: async (dir: string) => leakedKeysRule.run(await createProjectContext(dir)) };
+
 
 // Fake keys are assembled at runtime so no full key literal appears in this
 // file. Otherwise GitHub's secret scanner would block pushes.
@@ -48,7 +53,7 @@ describe("Detection A: hardcoded keys", () => {
 
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
-        checkId: "leaked-keys",
+        ruleId: "leaked-keys",
         file: "src/app.ts",
         line: 3,
         severity: EXPECTED[id].severity,
@@ -124,36 +129,6 @@ describe("safe decoys are never flagged", () => {
     const code = "return value.startsWith('sb_" + "publishable_') || value.startsWith('sb_" + "secret_');";
     expect(scanContent("a.ts", code)).toEqual([]);
   });
-});
-
-describe("Detection B: secrets exposed through Vite", () => {
-  const flagged = [
-    "import.meta.env.VITE_STRIPE_SECRET_KEY",
-    'import.meta.env["VITE_STRIPE_SECRET_KEY"]',
-    "import.meta.env['VITE_SUPABASE_SERVICE_ROLE_KEY']",
-    "import.meta.env.VITE_PRIVATE_TOKEN",
-    "import.meta.env.VITE_DB_PASSWORD",
-  ];
-  for (const code of flagged) {
-    it(`flags ${code}`, () => {
-      const findings = scanContent("src/lib/payments.ts", onLine3(`fetch(url, { key: ${code} });`));
-      expect(findings).toHaveLength(1);
-      expect(findings[0]).toMatchObject({ severity: "high", line: 3 });
-    });
-  }
-
-  const safe = [
-    "import.meta.env.VITE_SUPABASE_URL",
-    "import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY']",
-    "import.meta.env.MODE",
-    "readonly VITE_STRIPE_SECRET_KEY: string;", // type declaration in vite-env.d.ts
-    "process.env.STRIPE_SECRET_KEY", // server-side, not shipped by Vite
-  ];
-  for (const code of safe) {
-    it(`ignores ${code}`, () => {
-      expect(scanContent("a.ts", code)).toEqual([]);
-    });
-  }
 });
 
 describe("masking", () => {

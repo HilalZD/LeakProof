@@ -1,156 +1,229 @@
-# LeakProof
+# Leakproof
 
-**Find the leaks AI coding tools leave behind. One command, no signup.**
+**Find the leaks AI coding tools leave behind. One command, runs locally, sends nothing.**
 
-![LeakProof report showing 6 leaks: an unverified Stripe webhook, a hardcoded OpenAI key, secrets in a committed .env, and a Vite-exposed Stripe key](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo-leaks.svg)
-
-And when your app is clean:
-
-![LeakProof report showing no leaks and one low-risk warning](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo-clean.svg)
+<!-- DEMO GIF: record with `vhs docs/demo.tape`, then replace this line with ![Leakproof scanning a test app](docs/demo.gif) -->
 
 ## Quick start
 
 Run it inside your project folder:
 
 ```sh
-npx @leakproof/cli scan
+npx @leakproof/cli
 ```
 
 Or point it at another folder:
 
 ```sh
-npx @leakproof/cli scan ./my-app
+npx @leakproof/cli ./my-app
 ```
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. No account, no signup.
 
-## What it checks
-
-| Check | What it finds | Severity | Example |
-|---|---|---|---|
-| Stripe webhooks | Webhook handlers that never verify the Stripe signature, so anyone can fake a "payment completed" event | Critical | `JSON.parse(body)` with no `constructEvent` |
-| Secret keys in code | Secret API keys hardcoded in your code (OpenAI, Anthropic, Stripe, Supabase `service_role` and `sb_secret_`, AWS, GitHub) and secrets exposed to the browser through `VITE_` variables | Critical (Stripe test keys and `VITE_` secrets: High) | `const openai = new OpenAI({ apiKey: "sk-proj-…" })` |
-| Committed .env files | `.env` files with real secrets that are committed to git, or not git-ignored | Critical (committed) · Medium (not ignored) | `STRIPE_SECRET_KEY=sk_live_…` in a committed `.env` |
-
-It also shows a **Low** warning when a committed `.env` only holds public values (like your Supabase URL and anon key). That's safe today, but any secret you add later will be public. Low warnings don't fail the scan.
-
-Public keys are never flagged: Stripe publishable keys (`pk_`), Supabase anon and publishable keys, and the example keys from AWS's and Stripe's own docs.
-
-## Why
-
-AI app builders make it easy to ship a working app before anyone looks at its security. We sampled 38 public Lovable and Bolt apps with Stripe webhook code (October 2026): **4 of 38 (about 1 in 10) didn't verify webhook signatures**, so anyone could unlock paid features for free. That's a small sample, but the fix takes minutes once you know the problem is there.
+Works on apps built with any AI tool (Lovable, Bolt, v0, Replit, Cursor, Claude Code, Codex…) or by hand. The secret and `.env` checks work in any language; the rest are JS/TS for now (see [Which checks run on which code](#which-checks-run-on-which-code)).
 
 ## Example output
 
-From a test app with deliberate leaks:
+A real scan of NoteNest, a test app with deliberate leaks (keys are fake and masked, the middle is trimmed):
 
 ```text
-LeakProof v0.1.0 · scanning notenest-three-and-free
-90 files checked in 0.3s
+Leakproof v0.2.0 · 101 files checked · 1.1s
 
-✗ 6 leaks found · 5 critical · 1 high
+Security 0/100 · Grade F · 7 critical, 4 high, 1 medium
+Privacy: 3 possible gaps (not legal advice)
 
-── CRITICAL (5) ────────────────────────────────────────────────────────────────
+── CRITICAL (7) ────────────────────────────────────────────────────────────────
 
+  Stripe webhook doesn't verify signatures
   src/routes/api/public/stripe-webhook.ts:7
-    Stripe webhook doesn't verify signatures: anyone can send a fake 'payment
-    completed' event and unlock paid features for free
-    → Verify the stripe-signature header with
-      stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET)
-      before trusting the event. Use the raw request body, not parsed JSON.
+    Anyone can send a fake 'payment completed' event and unlock paid features
+    for free.
+    → Fix: Verify the stripe-signature header with
+           stripe.webhooks.constructEvent(rawBody, signature,
+           STRIPE_WEBHOOK_SECRET) before trusting the event. Use the raw request
+           body, not parsed JSON.
 
-  src/lib/ai.ts:1
-    OpenAI API key hardcoded: sk-proj-****W1xY
-    → Move this key to a server-side function and rotate it now.
+  Supabase table has Row Level Security turned off
+  supabase/migrations/20261114120000_invites.sql:2
+    Table public.invites has Row Level Security off, so anyone with your public
+    anon key can read and change every row. It holds personal data: inviter_id,
+    email.
+    → Fix: Run ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY; then add
+           policies so each user only sees their own rows, e.g. USING
+           (auth.uid() = user_id).
 
-  .env:7
-    STRIPE_SECRET_KEY is committed to git: sk_test_****M5wZ
-  .env:8
-    SUPABASE_SERVICE_ROLE_KEY is committed to git: eyJhbGci****2345
-  .env:9
-    VITE_STRIPE_SECRET_KEY is committed to git and shipped to the browser:
-    sk_test_****M5wZ
-    → Remove .env from git (git rm --cached .env), add .env to .gitignore, and
-      rotate this key; it stays in git history even after deletion.
+  Supabase service_role key in frontend code
+  src/components/AdminStats.tsx:7
+    The key eyJhbGci****0001 skips Row Level Security, so anyone who opens the
+    site can read or change every table.
+    → Fix: Use the anon or publishable key in the browser. Keep the service_role
+           key in server-only code (an API route or server function) and rotate
+           it now.
 
-── HIGH (1) ────────────────────────────────────────────────────────────────────
+  … 4 more critical findings …
 
-  src/lib/payments.ts:14
-    Secret exposed to the browser through Vite:
-    import.meta.env.VITE_STRIPE_SECRET_KEY
-    → Vite ships every VITE_ variable to the browser: drop the VITE_ prefix, use
-      STRIPE_SECRET_KEY only in server-side code, and rotate it.
+── HIGH (4) ────────────────────────────────────────────────────────────────────
+
+  Server function has no login check
+  src/lib/members.ts:5
+    This server function reads user data with the Supabase admin client, which
+    skips Row Level Security, and never checks who is calling: anyone can call
+    it over HTTP and get the data.
+    → Fix: Add an auth middleware to the server function (e.g.
+           .middleware([requireSupabaseAuth])) or check supabase.auth.getUser()
+           first, and only return the caller's own rows.
+
+  … 3 more high findings, 1 medium …
+
+── PRIVACY GAPS (possible) (3) ─────────────────────────────────────────────────
+
+  Users can't delete their account
+  src/routes/auth.tsx:38
+    Possible gap: users can create their own accounts in this app (sign-up in
+    src/routes/auth.tsx, line 38) but we couldn't find a way for users to delete
+    their account and data.
+    GDPR Art. 17 · PIPEDA 4.3.8 · PIPEDA 4.5.3
+    → Fix: Add a "Delete my account" option that removes the user's account and
+           their data on the server.
+
+  … 2 more possible gaps …
+
+This is not legal advice.
+
+Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:
+https://SITE_URL_PLACEHOLDER/fix?f=SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_SUPABASE_RLS_DISABLED,…
+
+Scanned locally. Nothing was sent anywhere.
+Help improve Leakproof: `leakproof telemetry on` shares anonymous counts (never code).
 ```
 
-## Private by design
+The security score starts at 100 and loses points per security finding (critical 25, high 10, medium 4, low 1). Any critical caps it at 39 (grade F), any high at 59 (grade D). Privacy gaps are listed separately and never change the score.
 
-- **Runs locally.** Your code never leaves your machine. LeakProof makes no network requests.
-- **No account.** Nothing to sign up for.
-- **No telemetry.** No analytics, no tracking.
-- **Keys are masked.** Reports only show the start and end of a key (`sk-proj-****W1xY`), never the full value, including in `--json` output.
+## What it checks
 
-`npx` downloads LeakProof from npm the first time you run it. After that, the scan itself is fully offline.
+### Security
 
-## Use it in CI
+| Check | What it finds | Severity |
+|---|---|---|
+| Secret keys in code | API keys written straight into your code, in any language: OpenAI, Anthropic, Stripe, Supabase `service_role` and `sb_secret_`, AWS, GitHub | Critical (Stripe test keys: High) |
+| Secrets the browser can reach | Secret keys in frontend files, or in `VITE_` / `NEXT_PUBLIC_` variables, which get bundled into the site visitors download | Critical (test keys: High) |
+| Supabase admin key in the frontend | The `service_role` key, which skips every database rule, used in browser code | Critical |
+| Committed `.env` files | A `.env` with real secrets committed to git (Critical), or not committed but missing from `.gitignore` (Medium). A committed `.env` with only public values (Supabase URL, anon key) is a Low warning | Critical · Medium · Low |
+| Stripe webhooks | Webhook handlers that never verify the Stripe signature, so anyone can fake a "payment completed" event | Critical |
+| Supabase Row Level Security | Tables in `supabase/schema.sql` or `supabase/migrations/` with RLS turned off, and policies that let everyone in (e.g. `USING (true)`). Tables with personal data rank higher | Critical, down to Low for read-only public data |
+| Login checks | API routes (TanStack, Next.js `app/api` and `pages/api`, Supabase edge functions) and TanStack server functions that read or change user data without checking who is calling | High |
+| Rate limits | Public endpoints that call a paid AI API or send email/SMS with no rate limit, so anyone can run up your bill in a loop | High (Medium when login is required) |
 
-LeakProof exits with a code your CI can act on:
+Public keys are never flagged: Stripe publishable keys (`pk_`), Supabase anon and publishable keys, and the example keys from AWS's and Stripe's own docs.
 
-| Exit code | Meaning |
+### Which checks run on which code
+
+| Any language (Python, Go, Ruby, PHP, Java, …) | JS/TS only for now |
 |---|---|
-| `0` | No leaks (Low warnings may still be shown) |
-| `1` | Leaks found |
-| `2` | LeakProof couldn't run (bad usage or scanner error) |
+| Secret keys in code (every text source and config file; not docs like `.md`) | Secrets the browser can reach (`VITE_` / `NEXT_PUBLIC_`) |
+| Committed `.env` files | Supabase admin key in the frontend |
+| Supabase Row Level Security (reads the SQL; "Couldn't verify" also spots `supabase` in `requirements.txt` / `pyproject.toml`) | Stripe webhooks, login checks, rate limits |
+| | All six privacy checks |
 
-Add `--json` for machine-readable output:
+On a project with no JS/TS code, the JS/TS-only checks don't run and are listed as `– Not checked: <check> (no JS/TS code found)` in the report, the GitHub summary and JSON (`notChecked`). They never get a ✓.
 
-```sh
-npx @leakproof/cli scan --json
+A ✓ means the check found something to inspect and it was safe. A check with nothing to inspect (no Supabase, no Stripe webhook, no API routes, no `.env` files, no sign-up…) is listed as `– Not applicable: <check> (no Supabase found)` instead, and in JSON as `{"reason": "not-applicable", "detail": "no Supabase found"}`. Neither changes the score or exit code.
+
+Dependency, build and cache folders are skipped in every language: `node_modules`, `.venv` / `venv` (and any virtualenv), `__pycache__`, `vendor`, `target`, `dist`, `build` and the like.
+
+### Privacy (possible gaps)
+
+Six checks look for common gaps against GDPR (EU) and PIPEDA (Canada). Each finding is a **possible gap**: code can't see everything (a policy on another website, deletion handled by email), so read them as questions to check, not verdicts. They're shown in their own section with the laws they relate to, and they **never change your score or fail the scan** unless you ask with `--fail-on-privacy`. This is not legal advice.
+
+| Check | What it finds | Severity | Laws |
+|---|---|---|---|
+| No privacy policy | Personal data leaves the browser at a public form, sign-up or API route, and there's no privacy page, link, or privacy section in your terms | High | GDPR Art. 13 · PIPEDA 4.8 |
+| Trackers before consent | Google Analytics, Meta Pixel, PostHog, Mixpanel, Segment, Hotjar or TikTok loads and there's no consent tool | High | ePrivacy Art. 5(3) · GDPR Art. 7 · PIPEDA 4.3 |
+| Personal data to third parties | Analytics `identify` calls with email or name, or a file that calls an AI API and also uses personal data (low confidence) | Medium | GDPR Art. 13(1)(e), Art. 28 · PIPEDA 4.1.3 |
+| No account deletion | Users can sign themselves up, but there's no way to delete the account | Medium | GDPR Art. 17 · PIPEDA 4.3.8, 4.5.3 |
+| No data export | Users can sign themselves up, but there's no way to download their data (low confidence) | Low | GDPR Art. 15, Art. 20 · PIPEDA 4.9 |
+| Personal data in logs | A log call prints a variable named like email, phone, password, address, token or user | Medium | GDPR Art. 5(1)(f), Art. 32 · PIPEDA 4.7 |
+
+Known limits: the consent check confirms a consent tool exists, not that trackers wait for it; admin pages and accounts that only an operator creates aren't checked; forms that send data through a helper in another file can be missed.
+
+## What it does NOT check
+
+Leakproof reads the files in your project. That's it. It does **not**:
+
+- **Look at your live database.** It can only judge Supabase rules that are saved as SQL in the repo. Rules you set in the dashboard are invisible to it.
+- **Run your app.** It doesn't test runtime behaviour, call your endpoints, or check what your deployed site actually does.
+- **Audit your dependencies.** Use `npm audit` or Dependabot for vulnerable packages.
+- **Read git history.** A key you deleted is still in your history, and Leakproof only sees your current files.
+- **Catch everything.** It looks for common mistakes AI builders make, with known gaps: only Stripe webhooks are checked; data access through helpers in other files isn't always followed; Express/Hono routes aren't checked; Vite variables read through destructuring are missed; made-up key-shaped strings in test files can be flagged.
+- **Check routes outside JS/TS.** Python route checks (login, rate limits, webhooks, privacy in Flask, FastAPI, Django): planned. Go, Ruby and PHP routes aren't checked either.
+- **Find framework secrets without a known prefix.** The key check looks for provider keys (OpenAI, Stripe, AWS…). A framework secret like Django's `SECRET_KEY = "..."` or Rails' `secret_key_base` has no prefix to recognize, so it isn't flagged.
+- **Read every kind of secrets file.** Only `.env` and `.env.*` count as env files. `.flaskenv`, or secrets kept in a `config.py` / `settings.py`, aren't checked as env files (a provider key inside them is still caught by the key check).
+
+A clean scan means none of these checks found a problem. It doesn't mean your app is secure.
+Found a gap or a false alarm? Please [open an issue](https://github.com/HilalZD/LeakProof/issues).
+
+## "Couldn't verify"
+
+Some checks need files that aren't in every repo. When your app uses Supabase but has no SQL files in `supabase/migrations`, Leakproof can't see your Row Level Security rules, so it says **Couldn't verify** instead of giving you a ✓. These don't change your score or fail the scan.
+
+**Tip:** open your project in the Supabase dashboard and run the **Security Advisor**. It checks your live tables for RLS that's off. Or run `supabase db pull` to save your schema into the repo so Leakproof can check it next time.
+
+## Options
+
+| Option | What it does |
+|---|---|
+| `--json` | Machine-readable JSON (summary, findings, skipped checks). Same as `--format json` |
+| `--format <text\|json\|github>` | Output format. `github` prints GitHub Actions annotations and writes a job summary |
+| `--fail-on <critical\|high\|medium\|low>` | Exit 1 only for security findings at this severity or worse. Default: `medium` |
+| `--fail-on-privacy <high\|medium\|low>` | Also exit 1 for privacy gaps at this severity or worse. Off by default: privacy never fails the scan |
+| `--verbose` | Also list every check that ran |
+
+Exit codes: `0` no security findings at the `--fail-on` level (and no privacy gaps at the `--fail-on-privacy` level, if set), `1` findings, `2` Leakproof couldn't run (bad usage or scanner error).
+
+### Ignoring findings: `.leakproofignore`
+
+Put a `.leakproofignore` file in your project root. One entry per line, `#` starts a comment:
+
+```gitignore
+# 1. A fix ID: ignored everywhere
+SEC_ENV_COMMITTED_PUBLIC_ONLY
+
+# 2. A path or glob: every finding in matching files
+src/legacy/**
+*.test.ts
+
+# 3. path:fixId: that fix ID in matching files only
+.env.example:SEC_ENV_COMMITTED
 ```
 
-Minimal GitHub Actions workflow (`.github/workflows/leakproof.yml`):
+Ignored findings don't count toward the score or exit code. The summary shows how many were ignored.
+
+## GitHub Action
 
 ```yaml
-name: LeakProof
-on: [push, pull_request]
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - run: npx --yes @leakproof/cli scan
+- uses: HilalZD/LeakProof@v0.2
+  with:
+    fail-on: high
 ```
 
-The job fails when leaks are found.
+Findings show up as annotations on your pull request, with a summary on the job page. Full copy-paste workflow: [docs/github-action.md](docs/github-action.md).
 
-## What it doesn't check (yet)
+## Privacy and safety
 
-LeakProof v0.1 catches a focused set of common leaks, not all of them. It does **not** yet check:
+- **Runs locally.** Your code never leaves your machine.
+- **Read-only.** Leakproof never changes, moves or deletes your files, and never connects to your database.
+- **Keys are masked.** Reports only show the start and end of a key (`sk-proj-****W1xY`), never the full value, including in `--json` and GitHub output.
+- **Telemetry is off unless you turn it on.** `leakproof telemetry on` shares anonymous counts (which fix IDs came up, how many files, which stack). Never code, paths, values or names. See [docs/telemetry.md](docs/telemetry.md) for the exact payload.
 
-- **Database security.** Supabase table permissions (Row Level Security) and storage bucket rules aren't checked.
-- **Git history.** A `.env` file or key you deleted is still in your git history, and LeakProof only looks at your current files.
-- **Other payment providers.** Only Stripe webhooks are checked, not Lemon Squeezy, Paddle or PayPal.
-- **Your built app.** LeakProof scans your source code, not the built files in `dist/` that visitors download.
-- **Every kind of secret.** Only the key types listed above are detected. Database connection strings with passwords are only caught in `.env` files, not in code or in `.env.example`.
-- **Some code patterns:**
-  - Vite variables read through destructuring (`const { VITE_SECRET } = import.meta.env`).
-  - Webhook handlers whose event names or body reading live in another file.
-  - Handlers that read the signature header but never actually check it.
-- **Debug endpoints** that return your environment variables.
+`npx` downloads Leakproof from npm the first time you run it. After that, the scan itself works offline.
 
-It can also flag things that aren't real problems:
+## Not legal advice
 
-- Made-up key-shaped strings in test files.
-- A webhook route file that never runs because another file handles the same path and verifies it.
-
-Found a gap or a false alarm? Please [open an issue](https://github.com/HilalZD/LeakProof/issues).
+Leakproof points out common security mistakes. It isn't a security audit or legal advice, and a clean scan doesn't mean your app meets any law or standard.
 
 ## Contributing
 
-Issues and pull requests are welcome. To work on LeakProof locally:
+Issues and pull requests are welcome:
 
 ```sh
 git clone https://github.com/HilalZD/LeakProof.git
@@ -165,7 +238,3 @@ Please never commit real keys, including in tests. Build fake keys at runtime (f
 ## License
 
 MIT © Hilal Zeidan
-
----
-
-⭐ Star the repo to follow updates.

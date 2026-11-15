@@ -3,10 +3,14 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { classify, committedEnvCheck, parseEnv } from "../src/checks/committed-env.js";
+import { classify, committedEnvRule, parseEnv } from "../src/rules/committed-env.js";
+import { createProjectContext } from "../src/lib/files.js";
 import { mask } from "../src/lib/mask.js";
 import { runScan } from "../src/scan.js";
 import { CheckSkipped } from "../src/types.js";
+
+// The rule runs on a ProjectContext; these tests pass a folder.
+const committedEnvCheck = { run: async (dir: string) => committedEnvRule.run(await createProjectContext(dir)) };
 
 // Fake keys are assembled at runtime so no full key literal appears in this
 // file. Otherwise GitHub's secret scanner would block pushes.
@@ -14,6 +18,7 @@ const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString("base
 const jwt = (payload: object) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64(payload)}.${"s1g".repeat(10)}`;
 
 const STRIPE_TEST = "sk_" + "test_" + "y".repeat(24);
+const STRIPE_LIVE = "sk_" + "live_" + "z".repeat(24);
 const OPENAI = "sk-" + "proj-" + "A1b2C3d4".repeat(6);
 const SERVICE_ROLE = jwt({ iss: "supabase", role: "service_role" });
 const ANON = jwt({ iss: "supabase", role: "anon" });
@@ -196,13 +201,13 @@ describe("committedEnvCheck in real git repos", () => {
     `VITE_STRIPE_SECRET_KEY=${STRIPE_TEST}`,
   ].join("\n");
 
-  it("tracked .env: one CRITICAL finding per secret line", async () => {
+  it("tracked .env: one finding per secret line, CRITICAL, or HIGH for test keys", async () => {
     const findings = await committedEnvCheck.run(await project({ ".env": secretEnv }, { commit: [".env"] }));
 
     expect(findings.map((f) => [f.line, f.severity])).toEqual([
-      [3, "critical"],
+      [3, "high"], // sk_test_
       [4, "critical"],
-      [5, "critical"],
+      [5, "high"], // sk_test_
     ]);
     expect(findings[0].message).toBe("STRIPE_SECRET_KEY is committed to git: sk_test_****yyyy");
     expect(findings[2].message).toBe("VITE_STRIPE_SECRET_KEY is committed to git and shipped to the browser: sk_test_****yyyy");
@@ -214,14 +219,14 @@ describe("committedEnvCheck in real git repos", () => {
   });
 
   it("tracked .env that is also in .gitignore is still CRITICAL", async () => {
-    const files = { ".env": `STRIPE_SECRET_KEY=${STRIPE_TEST}`, ".gitignore": ".env\n" };
+    const files = { ".env": `STRIPE_SECRET_KEY=${STRIPE_LIVE}`, ".gitignore": ".env\n" };
     const findings = await committedEnvCheck.run(await project(files, { commit: [".env", ".gitignore"] }));
     expect(findings.map((f) => f.severity)).toEqual(["critical"]);
   });
 
   it("staged but not yet committed counts as tracked", async () => {
     const findings = await committedEnvCheck.run(
-      await project({ ".env": `STRIPE_SECRET_KEY=${STRIPE_TEST}`, "a.txt": "a" }, { commit: ["a.txt"], stage: [".env"] }),
+      await project({ ".env": `STRIPE_SECRET_KEY=${STRIPE_LIVE}`, "a.txt": "a" }, { commit: ["a.txt"], stage: [".env"] }),
     );
     expect(findings.map((f) => f.severity)).toEqual(["critical"]);
   });
@@ -261,7 +266,11 @@ describe("committedEnvCheck in real git repos", () => {
       const findings = await committedEnvCheck.run(await project({ ".env": safe }, { commit: [".env"] }));
       expect(findings).toEqual([
         {
-          checkId: "committed-env",
+          ruleId: "committed-env",
+          fixId: "SEC_ENV_COMMITTED_PUBLIC_ONLY",
+          category: "security",
+          title: ".env file committed (public values only)",
+          confidence: "high",
           severity: "low",
           file: ".env",
           message: ".env is committed to git. It's safe right now (public values only), but any secret you add here becomes public.",
@@ -277,7 +286,7 @@ describe("committedEnvCheck in real git repos", () => {
     });
 
     it("tracked + secrets: only CRITICAL findings, never LOW", async () => {
-      const findings = await committedEnvCheck.run(await project({ ".env": `${safe}\nSTRIPE_SECRET_KEY=${STRIPE_TEST}` }, { commit: [".env"] }));
+      const findings = await committedEnvCheck.run(await project({ ".env": `${safe}\nSTRIPE_SECRET_KEY=${STRIPE_LIVE}` }, { commit: [".env"] }));
       expect(findings.map((f) => f.severity)).toEqual(["critical"]);
     });
 

@@ -1,0 +1,99 @@
+Leakproof v0.1.0 · 98 files checked · 0.5s
+
+Score 0/100 · Grade F · 7 critical, 3 high, 1 medium
+
+── CRITICAL (7) ────────────────────────────────────────────────────────────────
+
+  Stripe webhook doesn't verify signatures
+  src/routes/api/public/stripe-webhook.ts:7
+    Anyone can send a fake 'payment completed' event and unlock paid features
+    for free.
+    → Fix: Verify the stripe-signature header with
+           stripe.webhooks.constructEvent(rawBody, signature,
+           STRIPE_WEBHOOK_SECRET) before trusting the event. Use the raw request
+           body, not parsed JSON.
+
+  Supabase table has Row Level Security turned off
+  supabase/migrations/20261114120000_invites.sql:2
+    Table public.invites has Row Level Security off, so anyone with your public
+    anon key can read and change every row. It holds personal data: inviter_id,
+    email.
+    → Fix: Run ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY; then add
+           policies so each user only sees their own rows, e.g. USING
+           (auth.uid() = user_id).
+
+  Supabase security rule lets everyone in
+  supabase/migrations/20261114120100_public_profiles.sql:2
+    Policy "Profiles are viewable by everyone" on public.profiles lets anyone
+    read every row, including personal data (a profiles table usually holds
+    people's details).
+    → Fix: Replace USING (true) with a real check such as USING (auth.uid() =
+           user_id), or drop the policy if nobody should have this access.
+
+  Supabase service_role key in frontend code
+  src/components/AdminStats.tsx:7
+    The key eyJhbGci****0001 skips Row Level Security, so anyone who opens the
+    site can read or change every table.
+    → Fix: Use the anon or publishable key in the browser. Keep the service_role
+           key in server-only code (an API route or server function) and rotate
+           it now.
+
+  Secret key exposed to the browser
+  .env:10
+  also at: src/components/TitleSuggest.tsx:13
+    VITE_OPENAI_API_KEY is shipped to the browser: sk-proj-****6iO8
+    → Fix: Vite ships every VITE_ variable to the browser: drop the VITE_
+           prefix, use OPENAI_API_KEY only in server-side code, and rotate it.
+
+  Secret key exposed to the browser
+  src/lib/ai.ts:1
+    OpenAI API key in frontend code, so anyone can copy it from the browser:
+    sk-proj-****W1xY
+    → Fix: Move this key to a server-side function and rotate it now.
+
+  .env file with secrets committed
+  .env:8
+    SUPABASE_SERVICE_ROLE_KEY is committed to git: eyJhbGci****2345
+    → Fix: Remove .env from git (git rm --cached .env), add .env to .gitignore,
+           and rotate this key; it stays in git history even after deletion.
+
+── HIGH (3) ────────────────────────────────────────────────────────────────────
+
+  API route has no login check
+  src/routes/api/users.ts:8
+    This route reads or changes user data with the Supabase admin client, which
+    skips Row Level Security, and never checks who is calling: anyone can call
+    it and get the data.
+    → Fix: Check who is calling before touching data (e.g.
+           supabase.auth.getUser(token) and return 401 if there's no user), then
+           only return that user's own rows.
+
+  Endpoint has no rate limit
+  src/routes/api/summarize-note.ts:10
+    This endpoint calls OpenAI with no rate limit: anyone can call it in a loop
+    and run up your AI bill. It also doesn't require login.
+    → Fix: Add a per-user or per-IP rate limit before the expensive call (for
+           example @upstash/ratelimit), and require login for anything that
+           costs money.
+
+  Secret key exposed to the browser
+  .env:9
+  also at: .env:7, src/lib/payments.ts:14
+    VITE_STRIPE_SECRET_KEY is shipped to the browser: sk_test_****M5wZ
+    → Fix: Vite ships every VITE_ variable to the browser: drop the VITE_
+           prefix, use STRIPE_SECRET_KEY only in server-side code, and rotate
+           it.
+    → Also: Remove .env from git (git rm --cached .env), add .env to .gitignore,
+            and rotate this key; it stays in git history even after deletion.
+
+── MEDIUM (1) ──────────────────────────────────────────────────────────────────
+
+  Endpoint has no rate limit
+  src/routes/api/send-invite.ts:16
+    This endpoint sends email through Resend with no rate limit: anyone can call
+    it in a loop to spam people and run up your email bill.
+
+Copy-paste fixes for Lovable, Cursor or Bolt:
+https://SITE_URL_PLACEHOLDER/fix?f=SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_SUPABASE_RLS_DISABLED,SEC_SUPABASE_RLS_PERMISSIVE,SEC_SUPABASE_SERVICE_ROLE_CLIENT,SEC_SECRET_CLIENT_EXPOSED,SEC_ENV_COMMITTED,SEC_API_ROUTE_NO_AUTH,SEC_API_NO_RATE_LIMIT
+
+Scanned locally. Nothing was sent anywhere.

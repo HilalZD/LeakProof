@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <title>FitTrack</title>
+    <!-- Rule 2: Google Analytics loads immediately, nobody is asked first -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-TEST123"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag("js", new Date());
+      gtag("config", "G-TEST123");
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/App.tsx"></script>
+  </body>
+</html>

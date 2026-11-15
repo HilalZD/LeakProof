@@ -1,15 +1,16 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { isEnvFile, toProjectPath, walkFiles } from "../lib/files.js";
+import { isEnvFile } from "../lib/files.js";
 import { mask } from "../lib/mask.js";
-import { findSecretKeys, isDocumentedExampleKey } from "../lib/patterns.js";
-import { CheckSkipped, type Check, type Finding } from "../types.js";
+import { findSecretKeys, isDocumentedExampleKey, isTestKey, secretEnvId, secretValueId } from "../lib/patterns.js";
+import { CheckSkipped, type ScanFinding, type ScannerRule } from "../types.js";
 
-const CHECK_ID = "committed-env";
+const RULE_ID = "committed-env";
+const BASE = { ruleId: RULE_ID, category: "security", confidence: "high" } as const;
 
 const SECRET_NAME_PARTS = ["SECRET", "SERVICE_ROLE", "PRIVATE", "PASSWORD", "TOKEN", "API_KEY"];
-const SAFE_NAME_PARTS = ["PUBLISHABLE", "ANON", "URL", "PROJECT_ID", "PUBLIC"];
+// FIREBASE: Firebase web config (apiKey, authDomain, ...) is public by design.
+const SAFE_NAME_PARTS = ["PUBLISHABLE", "ANON", "URL", "PROJECT_ID", "PUBLIC", "FIREBASE"];
 
 const PLACEHOLDERS = [
   /^your[-_]/i,                     // your-api-key, your_secret
@@ -26,6 +27,9 @@ const PLACEHOLDERS = [
 const CREDENTIAL_URL = /^([a-z][a-z0-9+.-]*):\/\/([^:/?#@\s]*):(\S+?)@([^@/?#\s]+)(?=$|[/?#])/i;
 
 const EXAMPLE_FILE = /\.(example|sample|template)$/i;
+
+/** .env.example, .env.sample, .env.template: placeholders, never loaded by Vite. */
+export const isExampleEnvFile = (name: string) => EXAMPLE_FILE.test(name);
 
 export interface EnvEntry {
   line: number;
@@ -65,6 +69,8 @@ const isPlaceholder = (value: string) => PLACEHOLDERS.some((p) => p.test(value))
 interface Secret {
   entry: EnvEntry;
   masked: string;
+  /** The secret part of the value: the key, the URL's password, or the whole value. In memory only. */
+  value: string;
 }
 
 /** Returns how the entry should be shown if it is a secret, or undefined if it's safe. */
@@ -73,14 +79,14 @@ export function classify(entry: EnvEntry, exampleFile: boolean): Secret | undefi
 
   // Rule 1: a real-shaped key, whatever the variable is called.
   const [key] = findSecretKeys(value);
-  if (key) return { entry, masked: mask(key.value) };
+  if (key) return { entry, masked: mask(key.value), value: key.value };
   if (exampleFile) return undefined;
 
   // Rule 3: a URL with a real password in it, whatever the variable is called.
   const url = CREDENTIAL_URL.exec(value);
   if (url) {
     const [, scheme, user, password, host] = url;
-    if (!isPlaceholder(password)) return { entry, masked: `${scheme}://${user}:****@${host}` };
+    if (!isPlaceholder(password)) return { entry, masked: `${scheme}://${user}:****@${host}`, value: password };
   }
 
   // Rule 2: a secret-sounding name with a real value.
@@ -92,7 +98,7 @@ export function classify(entry: EnvEntry, exampleFile: boolean): Secret | undefi
     !isPlaceholder(value) &&
     !isDocumentedExampleKey(value)
   ) {
-    return { entry, masked: mask(value) };
+    return { entry, masked: mask(value), value };
   }
   return undefined;
 }
@@ -147,24 +153,25 @@ async function gitStatus(projectPath: string, files: string[]) {
   return { trackedFiles, ignoredFiles };
 }
 
-export const committedEnvCheck: Check = {
-  id: CHECK_ID,
-  name: "Committed .env files",
+export const committedEnvRule: ScannerRule = {
+  id: RULE_ID,
+  category: "security",
+  description: "Committed .env files",
   passedLabel: "No secrets in committed .env files",
-  severity: "critical",
-  async run(projectPath, context) {
+  notApplicable: (ctx) => (ctx.files.some((file) => isEnvFile(basename(file))) ? undefined : "no .env files found"),
+  async run(ctx) {
     const envFiles: { file: string; example: boolean; entries: number; secrets: Secret[] }[] = [];
-    for await (const filePath of walkFiles(projectPath, isEnvFile, context)) {
-      const file = toProjectPath(projectPath, filePath);
+    for (const file of ctx.files) {
+      if (!isEnvFile(basename(file))) continue;
       const example = EXAMPLE_FILE.test(basename(file));
-      const entries = parseEnv(await readFile(filePath, "utf8"));
+      const entries = parseEnv(ctx.read(file));
       const secrets = entries.map((entry) => classify(entry, example)).filter((s): s is Secret => s !== undefined);
       envFiles.push({ file, example, entries: entries.length, secrets });
     }
     if (envFiles.length === 0) return [];
 
-    const { trackedFiles, ignoredFiles } = await gitStatus(projectPath, envFiles.map((f) => f.file));
-    const findings: Finding[] = [];
+    const { trackedFiles, ignoredFiles } = await gitStatus(ctx.root, envFiles.map((f) => f.file));
+    const findings: ScanFinding[] = [];
 
     for (const { file, example, entries, secrets } of envFiles) {
       // Vite loads .env, .env.local, .env.[mode] and .env.[mode].local, never example files.
@@ -174,11 +181,15 @@ export const committedEnvCheck: Check = {
         const fix = example
           ? `Replace the real value in ${file} with a placeholder and rotate this key; it stays in git history even after deletion.`
           : `Remove ${file} from git (git rm --cached ${file}), add ${file} to .gitignore, and rotate this key; it stays in git history even after deletion.`;
-        for (const { entry, masked } of secrets) {
+        for (const { entry, masked, value } of secrets) {
           const where = shipped(entry.name) ? "committed to git and shipped to the browser" : "committed to git";
           findings.push({
-            checkId: CHECK_ID,
-            severity: "critical",
+            ...BASE,
+            fixId: "SEC_ENV_COMMITTED",
+            title: ".env file with secrets committed",
+            // Test keys can't move real money, so they're one level lower.
+            severity: isTestKey(value) ? "high" : "critical",
+            secretIds: [secretValueId(value), secretEnvId(entry.name)],
             file,
             line: entry.line,
             message: `${entry.name} is ${where}: ${masked}`,
@@ -189,7 +200,10 @@ export const committedEnvCheck: Check = {
         // Safe today, but this is where someone will paste the next secret.
         if (example || entries === 0) continue;
         findings.push({
-          checkId: CHECK_ID,
+          ...BASE,
+          // Not in CONTRACT v1 yet: proposed to Hilal for the "Proposed" section.
+          fixId: "SEC_ENV_COMMITTED_PUBLIC_ONLY",
+          title: ".env file committed (public values only)",
           severity: "low",
           file,
           message: `${file} is committed to git. It's safe right now (public values only), but any secret you add here becomes public.`,
@@ -200,7 +214,11 @@ export const committedEnvCheck: Check = {
         const vite = secrets.map((s) => s.entry.name).filter(shipped);
         const viteSentence = vite.length > 0 ? ` ${vite.join(", ")} ${vite.length === 1 ? "is" : "are"} also shipped to the browser.` : "";
         findings.push({
-          checkId: CHECK_ID,
+          ...BASE,
+          // Not in CONTRACT v1 yet: proposed to Hilal for the "Proposed" section.
+          fixId: "SEC_ENV_NOT_GITIGNORED",
+          secretIds: secrets.flatMap((s) => [secretValueId(s.value), secretEnvId(s.entry.name)]),
+          title: ".env file with secrets not in .gitignore",
           severity: "medium",
           file,
           line: secrets[0].entry.line,
@@ -212,6 +230,6 @@ export const committedEnvCheck: Check = {
       }
     }
 
-    return findings.sort((a, b) => a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0));
+    return findings.sort((a, b) => (a.file ?? "").localeCompare(b.file ?? "") || (a.line ?? 0) - (b.line ?? 0));
   },
 };

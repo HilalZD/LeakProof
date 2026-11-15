@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { stripComments, stripeWebhookCheck } from "../src/checks/stripe-webhook.js";
+import { createProjectContext } from "../src/lib/files.js";
+import { stripComments, stripeWebhookRule } from "../src/rules/stripe-webhook.js";
 
 // Each fixture marks the line where the request body is first read with
 // "// <-- body", so the expected line number lives next to the code.
@@ -200,7 +201,7 @@ async function scan(files: Record<string, string>) {
     await mkdir(dirname(join(dir, path)), { recursive: true });
     await writeFile(join(dir, path), content);
   }
-  return stripeWebhookCheck.run(dir);
+  return stripeWebhookRule.run(await createProjectContext(dir));
 }
 
 describe("flags unverified webhook handlers", () => {
@@ -209,9 +210,9 @@ describe("flags unverified webhook handlers", () => {
       const findings = await scan({ [path]: code });
 
       expect(findings).toHaveLength(1);
-      expect(findings[0]).toMatchObject({ checkId: "stripe-webhook", severity: "critical", file: path, line: lineOf(code) });
+      expect(findings[0]).toMatchObject({ ruleId: "stripe-webhook", severity: "critical", file: path, line: lineOf(code) });
       expect(findings[0].message).toBe(
-        "Stripe webhook doesn't verify signatures: anyone can send a fake 'payment completed' event and unlock paid features for free",
+        "Anyone can send a fake 'payment completed' event and unlock paid features for free.",
       );
       expect(findings[0].fix).toMatch(/^Verify the stripe-signature header with stripe\.webhooks\.constructEvent/);
     });

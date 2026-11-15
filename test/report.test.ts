@@ -6,21 +6,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { run, useColor, type CliIo } from "../src/cli.js";
 import { exitCodeFor, renderJson, renderReport, WIDTH, wrap } from "../src/report.js";
 import type { ScanResult } from "../src/scan.js";
-import type { Check, Finding, Severity } from "../src/types.js";
+import type { ScanFinding as Finding, ScannerRule as Check, Severity } from "../src/types.js";
 
 const noColors = pc.createColors(false);
 const ANSI = /\u001b\[/;
 
 const check = (id: string, name: string, passedLabel = `${name} passed`): Check => ({
   id,
-  name,
+  category: "security",
+  description: name,
   passedLabel,
-  severity: "critical",
   run: async () => [],
 });
 const leakedKeys = check("leaked-keys", "Leaked secret keys in code", "No secret keys in code");
 const committedEnv = check("committed-env", "Committed .env files", "No secrets in committed .env files");
 const stripeWebhook = check("stripe-webhook", "Stripe webhook signature verification", "Stripe webhooks verify signatures");
+const rateLimit = check("rate-limit", "Rate limits on paid and sensitive endpoints", "Paid and sensitive endpoints are rate limited");
 
 const finding = (
   severity: Severity,
@@ -28,9 +29,13 @@ const finding = (
   line: number,
   message = "Something leaked",
   fix = "Fix it.",
-  checkId = "leaked-keys",
+  ruleId = "leaked-keys",
 ): Finding => ({
-  checkId,
+  ruleId,
+  fixId: "SEC_SECRET_HARDCODED",
+  category: "security",
+  title: "Secret key hardcoded in code",
+  confidence: "high",
   severity,
   file,
   line,
@@ -42,66 +47,40 @@ const result = (findings: Finding[], extra: Partial<ScanResult> = {}): ScanResul
   projectPath: join(tmpdir(), "my-app"),
   checks: [leakedKeys, committedEnv],
   findings,
+  ignored: [],
   skipped: [],
   filesChecked: 42,
   durationMs: 1234,
   ...extra,
 });
 
-const render = (r: ScanResult, verbose = false, waitlistUrl = "") =>
-  renderReport(r, { colors: noColors, version: "9.9.9", verbose, waitlistUrl });
+const SITE = "https://fix.example";
+const render = (r: ScanResult, verbose = false) => renderReport(r, { colors: noColors, version: "9.9.9", verbose, siteUrl: SITE });
 const lines = (text: string) => text.trimEnd().split("\n");
+const FOOTER = "Scanned locally. Nothing was sent anywhere.";
 
 describe("renderReport", () => {
-  it("clean result with no waitlist URL: no footer", () => {
+  it("clean result: header, score line, passed checks and the footer, with no fix link", () => {
     expect(render(result([]))).toBe(
       [
-        "LeakProof v9.9.9 · scanning my-app",
-        "42 files checked in 1.2s",
+        "Leakproof v9.9.9 · 42 files checked · 1.2s",
         "",
-        "✓ No leaks found",
+        "Security 100/100 · Grade A · no leaks",
         "",
         "  ✓ No secret keys in code",
         "  ✓ No secrets in committed .env files",
+        "",
+        FOOTER,
         "",
       ].join("\n"),
     );
   });
 
-  it("clean result with a waitlist URL: footer shown", () => {
-    expect(render(result([]), false, "https://example.com")).toBe(
-      [
-        "LeakProof v9.9.9 · scanning my-app",
-        "42 files checked in 1.2s",
-        "",
-        "✓ No leaks found",
-        "",
-        "  ✓ No secret keys in code",
-        "  ✓ No secrets in committed .env files",
-        "",
-        "Want 24/7 watching and AI fixes? → https://example.com",
-        "",
-      ].join("\n"),
-    );
+  it("never shows the scanned folder's name", () => {
+    expect(render(result([finding("critical", ".env", 7)]))).not.toContain("my-app");
   });
 
-  it("leaks with no waitlist URL: no footer and no trailing blank line", () => {
-    const out = render(result([finding("critical", ".env", 7)]));
-    expect(out).not.toContain("Want 24/7");
-    expect(out.endsWith("    → Fix it.\n")).toBe(true);
-  });
-
-  it("leaks with a waitlist URL: footer is the last line", () => {
-    const out = render(result([finding("critical", ".env", 7)]), false, "https://example.com");
-    expect(lines(out).at(-1)).toBe("Want 24/7 watching and AI fixes? → https://example.com");
-  });
-
-  it("uses WAITLIST_URL from config.ts by default, which is empty for now", () => {
-    const out = renderReport(result([]), { colors: noColors, version: "9.9.9" });
-    expect(out).not.toContain("Want 24/7");
-  });
-
-  it("mixed severities: summary lists only the severities present", () => {
+  it("leaks: score line, title, location, message, fix, then the fix link and footer last", () => {
     const out = render(
       result([
         finding("critical", "src/lib/ai.ts", 1, "OpenAI API key hardcoded: sk-proj-****W1xY", "Move this key."),
@@ -110,18 +89,51 @@ describe("renderReport", () => {
       ]),
     );
 
-    expect(lines(out)[3]).toBe("✗ 3 leaks found · 2 critical · 1 high");
+    expect(lines(out)[2]).toBe("Security 39/100 · Grade F · 2 critical, 1 high");
     expect(out).toContain(
-      ["  src/lib/ai.ts:1", "    OpenAI API key hardcoded: sk-proj-****W1xY", "    → Move this key."].join("\n"),
+      [
+        "  Secret key hardcoded in code",
+        "  src/lib/ai.ts:1",
+        "    OpenAI API key hardcoded: sk-proj-****W1xY",
+        "    → Fix: Move this key.",
+      ].join("\n"),
     );
+    expect(lines(out).slice(-4)).toEqual([
+      "Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:",
+      `${SITE}/fix?f=SEC_SECRET_HARDCODED`,
+      "",
+      FOOTER,
+    ]);
   });
 
-  it("only-medium result, singular wording", () => {
+  it("shows the fix for critical and high only", () => {
+    const out = render(
+      result([
+        finding("critical", "c.ts", 1, "c", "Fix critical."),
+        finding("high", "h.ts", 1, "h", "Fix high."),
+        finding("medium", "m.ts", 1, "m", "Fix medium."),
+        finding("low", "l.ts", 1, "l", "Fix low."),
+      ]),
+    );
+    expect(out).toContain("→ Fix: Fix critical.");
+    expect(out).toContain("→ Fix: Fix high.");
+    expect(out).not.toContain("Fix medium.");
+    expect(out).not.toContain("Fix low.");
+  });
+
+  it("only medium: the score line lists only the severities present", () => {
     const out = render(result([finding("medium", ".env.local", 3)]));
-    expect(lines(out)[3]).toBe("✗ 1 leak found · 1 medium");
+    expect(lines(out)[2]).toBe("Security 96/100 · Grade A · 1 medium");
     expect(out).toContain("── MEDIUM (1) ──");
     expect(out).not.toContain("CRITICAL");
     expect(out).not.toContain("HIGH");
+  });
+
+  it("says how many findings were ignored, and leaves them out", () => {
+    const ignored = [finding("critical", "old.ts", 1, "ignored one")];
+    const out = render(result([finding("high", "a.ts", 1)], { ignored }));
+    expect(lines(out)[2]).toBe("Security 59/100 · Grade D · 1 high · 1 ignored");
+    expect(out).not.toContain("old.ts");
   });
 
   it("orders sections critical, high, medium whatever order the findings arrive in", () => {
@@ -133,9 +145,10 @@ describe("renderReport", () => {
     expect(out.indexOf("h.ts:1")).toBeLessThan(out.indexOf("m.ts:1"));
   });
 
-  it("within a severity: stripe-webhook, then leaked-keys, then committed-env, by file:line within each", () => {
+  it("within a severity: stripe-webhook, rate-limit, leaked-keys, then committed-env, by file:line within each", () => {
     const out = render(
       result([
+        finding("critical", "app/api/chat/route.ts", 4, "no limit", "Fix limit.", "rate-limit"),
         finding("critical", ".env", 9, "env 9", "Fix env 9.", "committed-env"),
         finding("critical", "src/z.ts", 1, "key z", "Fix z.", "leaked-keys"),
         finding("critical", ".env", 7, "env 7", "Fix env 7.", "committed-env"),
@@ -145,9 +158,10 @@ describe("renderReport", () => {
         finding("critical", "src/other.ts", 1, "unknown check", "Fix other.", "future-check"),
       ]),
     );
-    const locations = lines(out).filter((l) => /^ {2}\S/.test(l)).map((l) => l.trim());
+    const locations = lines(out).filter((l) => /^ {2}\S+:\d+$/.test(l)).map((l) => l.trim());
     expect(locations).toEqual([
       "src/routes/api/hook.ts:7",
+      "app/api/chat/route.ts:4",
       "src/a.ts:3",
       "src/a.ts:12",
       "src/z.ts:1",
@@ -157,103 +171,81 @@ describe("renderReport", () => {
     ]);
   });
 
-  describe("shared fixes", () => {
+  it("prints every finding's fix, even when two findings share one", () => {
     const fix = "Remove .env from git and rotate this key.";
-
-    it("prints one fix after the last consecutive finding in a file with the same fix", () => {
-      const out = render(
-        result([
-          finding("critical", ".env", 7, "STRIPE_SECRET_KEY is committed", fix, "committed-env"),
-          finding("critical", ".env", 8, "SUPABASE_SERVICE_ROLE_KEY is committed", fix, "committed-env"),
-          finding("critical", ".env", 9, "VITE_STRIPE_SECRET_KEY is committed", fix + " Also VITE.", "committed-env"),
-        ]),
-      );
-
-      expect(out).toContain(
-        [
-          "  .env:7",
-          "    STRIPE_SECRET_KEY is committed",
-          "  .env:8",
-          "    SUPABASE_SERVICE_ROLE_KEY is committed",
-          `    → ${fix}`,
-          "",
-          "  .env:9",
-          "    VITE_STRIPE_SECRET_KEY is committed",
-          `    → ${fix} Also VITE.`,
-          "",
-        ].join("\n"),
-      );
-      expect(out.split(`→ ${fix}\n`)).toHaveLength(2); // the shared fix appears once
-    });
-
-    it("still prints the fix for each file when the same fix is in different files", () => {
-      const out = render(result([finding("critical", "a/.env", 1, "A", fix), finding("critical", "b/.env", 1, "B", fix)]));
-      expect(out.split(`→ ${fix}`)).toHaveLength(3);
-    });
-
-    it("still prints both fixes when the findings aren't consecutive", () => {
-      const out = render(
-        result([
-          finding("critical", "src/a.ts", 1, "first", fix),
-          finding("critical", "src/a.ts", 2, "middle", "A different fix."),
-          finding("critical", "src/a.ts", 3, "last", fix),
-        ]),
-      );
-      expect(out.split(`→ ${fix}`)).toHaveLength(3);
-    });
-
-    it("doesn't share a fix across severity groups", () => {
-      const out = render(result([finding("critical", ".env", 1, "A", fix), finding("high", ".env", 2, "B", fix)]));
-      expect(out.split(`→ ${fix}`)).toHaveLength(3);
-    });
+    const out = render(
+      result([
+        finding("critical", ".env", 7, "STRIPE_SECRET_KEY is committed", fix, "committed-env"),
+        finding("critical", ".env", 8, "SUPABASE_SERVICE_ROLE_KEY is committed", fix, "committed-env"),
+      ]),
+    );
+    expect(out.split(`→ Fix: ${fix}`)).toHaveLength(3);
   });
 
   describe("LOW warnings", () => {
     const low = (file = ".env") => finding("low", file, 0, `${file} is committed to git.`, "Keep secrets out.", "committed-env");
 
-    it("only LOW: no leaks, singular and plural warning wording", () => {
-      expect(lines(render(result([low()])))[3]).toBe("✓ No leaks found · 1 low-risk warning");
-      expect(lines(render(result([low(".env"), low(".env.production")])))[3]).toBe("✓ No leaks found · 2 low-risk warnings");
+    it("only LOW: one point off each, no leak", () => {
+      expect(lines(render(result([low()])))[2]).toBe("Security 99/100 · Grade A · 1 low");
+      expect(lines(render(result([low(".env"), low(".env.production")])))[2]).toBe("Security 98/100 · Grade A · 2 low");
     });
 
-    it("leaks plus LOW: LOW isn't counted as a leak", () => {
-      const findings = [
-        ...Array.from({ length: 5 }, (_, i) => finding("critical", ".env", i + 1)),
-        finding("high", "src/lib/payments.ts", 14),
-        low(),
-      ];
-      expect(lines(render(result(findings)))[3]).toBe("✗ 6 leaks found · 5 critical · 1 high · 1 low-risk warning");
-    });
-
-    it("uses bright blue, not plain blue, for the summary text, divider and arrow", () => {
+    it("uses bright blue, not plain blue, for LOW", () => {
       const out = renderReport(result([low()]), { colors: pc.createColors(true), version: "1" });
       const BRIGHT_BLUE = "\u001b[94m";
       const BLUE = "\u001b[34m";
       const line = (start: string) => out.split("\n").find((l) => l.replace(/\u001b\[\d+m/g, "").startsWith(start))!;
 
-      expect(line("✓ No leaks found")).toContain(`${BRIGHT_BLUE}1 low-risk warning`);
+      expect(line("Security 99/100")).toContain(`${BRIGHT_BLUE}1 low`);
       expect(line("── LOW (1)")).toContain(BRIGHT_BLUE);
-      expect(line("    → Keep secrets out.")).toContain(`${BRIGHT_BLUE}→`);
       expect(out).not.toContain(BLUE);
     });
 
     it("LOW section comes after MEDIUM and has no line number", () => {
       const out = render(result([low(), finding("medium", ".env.local", 3)]));
       expect(out.indexOf("── MEDIUM (1)")).toBeLessThan(out.indexOf("── LOW (1)"));
-      expect(out).toContain("── LOW (1) ──");
       expect(lines(out)).toContain("  .env");
     });
   });
 
-  describe("checklist on clean results", () => {
-    const allChecks = [leakedKeys, committedEnv, stripeWebhook];
+  describe("Couldn't verify", () => {
+    const info = (): Finding => ({
+      ...finding("info", "", 0, "No supabase/migrations folder, so RLS couldn't be checked."),
+      file: undefined,
+      line: undefined,
+      fixId: "SEC_SUPABASE_RLS_UNVERIFIED",
+      title: "Database rules couldn't be checked",
+    });
 
-    it("lists every passed check, in report order, under the summary", () => {
+    it("is not shown when there are no info findings", () => {
+      expect(render(result([finding("high", "a.ts", 1)]))).not.toContain("COULDN'T VERIFY");
+    });
+
+    it("lists info findings after LOW, and they don't change the score", () => {
+      const out = render(result([finding("low", ".env", 0), info()]));
+      expect(lines(out)[2]).toBe("Security 99/100 · Grade A · 1 low");
+      expect(out.indexOf("── LOW (1)")).toBeLessThan(out.indexOf("── COULDN'T VERIFY (1)"));
+      expect(out).toContain("  Database rules couldn't be checked\n    No supabase/migrations folder");
+      expect(out).toContain(`${SITE}/fix?f=SEC_SECRET_HARDCODED,SEC_SUPABASE_RLS_UNVERIFIED`);
+    });
+
+    it("doesn't show a ✓ for a check that couldn't verify", () => {
+      const out = render(result([{ ...info(), ruleId: rateLimit.id }], { checks: [leakedKeys, rateLimit] }));
+      expect(out).toContain("✓ No secret keys in code");
+      expect(out).not.toContain("✓ Paid and sensitive endpoints are rate limited");
+    });
+  });
+
+  describe("checklist on clean results", () => {
+    const allChecks = [leakedKeys, committedEnv, stripeWebhook, rateLimit];
+
+    it("lists every passed check, in report order, under the score", () => {
       const out = render(result([], { checks: allChecks }));
-      expect(lines(out).slice(3, 8)).toEqual([
-        "✓ No leaks found",
+      expect(lines(out).slice(2, 8)).toEqual([
+        "Security 100/100 · Grade A · no leaks",
         "",
         "  ✓ Stripe webhooks verify signatures",
+        "  ✓ Paid and sensitive endpoints are rate limited",
         "  ✓ No secret keys in code",
         "  ✓ No secrets in committed .env files",
       ]);
@@ -290,6 +282,11 @@ describe("renderReport", () => {
       expect(exitCodeFor(result([finding("high", "a.ts", 1)]))).toBe(1);
       expect(exitCodeFor(result([finding("critical", "a.ts", 1)]))).toBe(1);
     });
+
+    it("ignored findings don't count", () => {
+      expect(exitCodeFor(result([], { ignored: [finding("critical", "a.ts", 1)] }))).toBe(0);
+      expect(exitCodeFor(result([finding("low", ".env", 0)], { ignored: [finding("high", "a.ts", 1)] }))).toBe(0);
+    });
   });
 
   it("dividers are exactly the report width", () => {
@@ -308,9 +305,9 @@ describe("renderReport", () => {
 
     for (const line of all) expect(line.length, line).toBeLessThanOrEqual(WIDTH);
 
-    const fixStart = all.findIndex((l) => l.startsWith("    → Remove"));
-    expect(all[fixStart + 1]).toMatch(/^ {6}\S/); // continuation lines line up under the text after "→ "
-    expect(all.slice(fixStart, fixStart + 3).join(" ").replace(/ +/g, " ").trim()).toBe(`→ ${fix}`);
+    const fixStart = all.findIndex((l) => l.startsWith("    → Fix: Remove"));
+    expect(all[fixStart + 1]).toMatch(/^ {11}\S/); // continuation lines line up under the text after "→ Fix: "
+    expect(all.slice(fixStart, fixStart + 3).join(" ").replace(/ +/g, " ").trim()).toBe(`→ Fix: ${fix}`);
 
     // The masked key stays whole on one line.
     expect(all.some((l) => l.includes("sk_test_****M5wZ"))).toBe(true);
@@ -336,13 +333,13 @@ describe("renderReport", () => {
     }
   });
 
-  it("shows skipped-check warnings after the findings", () => {
+  it("shows skipped-check warnings after the findings and before the footer", () => {
     const reason = "Not a git repository, so LeakProof can't tell whether .env files are committed.";
-    const out = render(result([finding("high", "a.ts", 1)], { skipped: [{ check: committedEnv, reason }] }), false, "https://example.com");
+    const out = render(result([finding("high", "a.ts", 1)], { skipped: [{ check: committedEnv, reason }] }));
 
     expect(out).toContain("⚠ Committed .env files skipped: Not a git repository, so LeakProof can't tell");
     expect(out.indexOf("⚠")).toBeGreaterThan(out.indexOf("a.ts:1"));
-    expect(out.indexOf("⚠")).toBeLessThan(out.indexOf("Want 24/7"));
+    expect(out.indexOf("⚠")).toBeLessThan(out.indexOf(FOOTER));
     for (const line of lines(out)) expect(line.length).toBeLessThanOrEqual(WIDTH);
   });
 
@@ -354,6 +351,11 @@ describe("renderReport", () => {
     expect(verbose).toContain("Checks run:\n  ✓ Leaked secret keys in code (leaked-keys)\n  ⚠ Committed .env files (committed-env): skipped");
   });
 
+  it("uses the placeholder SITE_URL from config.ts by default", () => {
+    const out = renderReport(result([finding("critical", ".env", 7)]), { colors: noColors, version: "9.9.9" });
+    expect(out).toContain("https://SITE_URL_PLACEHOLDER/fix?f=SEC_SECRET_HARDCODED");
+  });
+
   it("has no ANSI codes with colors off, and has them with colors on", () => {
     const r = result([finding("critical", "a.ts", 1)]);
     expect(render(r)).not.toMatch(ANSI);
@@ -362,22 +364,44 @@ describe("renderReport", () => {
 });
 
 describe("renderJson", () => {
-  it("parses, matches the shape, and has no colors or footer", () => {
-    const findings = [finding("critical", ".env", 7), finding("high", "src/a.ts", 2), finding("low", ".env", 0)];
-    const text = renderJson(result(findings, { skipped: [{ check: committedEnv, reason: "No git." }] }), "9.9.9");
+  it("has the summary, contract findings with the one-line fix, and skipped checks", () => {
+    const findings = [finding("high", "src/a.ts", 2), finding("critical", ".env", 7), finding("low", ".env", 0)];
+    const ignored = [finding("critical", "old.ts", 1)];
+    const text = renderJson(result(findings, { ignored, skipped: [{ check: committedEnv, reason: "No git." }] }), SITE);
     const json = JSON.parse(text);
 
     expect(json).toEqual({
-      version: "9.9.9",
-      path: join(tmpdir(), "my-app"),
-      filesChecked: 42,
-      durationMs: 1234,
-      summary: { total: 3, leaks: 2, critical: 1, high: 1, medium: 0, low: 1 },
-      findings,
-      skipped: [{ checkId: "committed-env", name: "Committed .env files", reason: "No git." }],
+      summary: {
+        score: 39,
+        grade: "F",
+        counts: { critical: 1, high: 1, medium: 0, low: 1, info: 0 },
+        security: { score: 39, grade: "F", counts: { critical: 1, high: 1, medium: 0, low: 1, info: 0 } },
+        privacy: { count: 0, bySeverity: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } },
+        filesChecked: 42,
+        ignored: 1,
+        fixLink: `${SITE}/fix?f=SEC_SECRET_HARDCODED`,
+      },
+      // Report order: worst first.
+      findings: [findings[1], findings[0], findings[2]],
+      skipped: [{ ruleId: "committed-env", name: "Committed .env files", reason: "No git." }],
+      notChecked: [],
     });
+    expect(Object.keys(json.findings[0]).sort()).toEqual(
+      ["category", "confidence", "file", "fix", "fixId", "line", "message", "ruleId", "severity", "title"].sort(),
+    );
     expect(text).not.toMatch(ANSI);
-    expect(text).not.toContain("Want 24/7");
+    expect(text).not.toContain("Nothing was sent");
+  });
+
+  it("fixLink is null and the score 100 when there's nothing to report", () => {
+    const json = JSON.parse(renderJson(result([])));
+    expect(json.summary).toMatchObject({ score: 100, grade: "A", fixLink: null, ignored: 0 });
+    expect(json.findings).toEqual([]);
+  });
+
+  it("leaves out fields that aren't in the contract", () => {
+    const extra = { ...finding("critical", "a.ts", 1), internal: "secret value" } as Finding;
+    expect(renderJson(result([extra]))).not.toContain("secret value");
   });
 });
 
@@ -423,28 +447,36 @@ describe("CLI exit codes and output", () => {
     return dir;
   }
 
+  const key = "sk_" + "live_" + "x".repeat(24);
+
   it("0 for a clean folder", async () => {
     const { code, stdout } = await cli(["scan", await project({ "src/app.ts": "export const x = 1;\n" })]);
     expect(code).toBe(0);
-    expect(stdout).toContain("✓ No leaks found");
+    expect(stdout).toContain("Security 100/100 · Grade A · no leaks");
     expect(stdout).toContain("1 file checked");
   });
 
   it("1 when there are findings", async () => {
-    const key = "sk_" + "live_" + "x".repeat(24);
     const { code, stdout } = await cli(["scan", await project({ "src/app.ts": `const k = "${key}";\n` })]);
     expect(code).toBe(1);
-    expect(stdout).toContain("✗ 1 leak found · 1 critical");
+    expect(stdout).toContain("Security 39/100 · Grade F · 1 critical");
     expect(stdout).not.toContain(key);
     expect(stdout).not.toMatch(ANSI); // not a terminal
   });
 
+  it("ignored findings don't fail the scan, and the summary says how many", async () => {
+    const files = { "src/app.ts": `const k = "${key}";\n`, ".leakproofignore": "# demo key\nsrc/app.ts:SEC_SECRET_HARDCODED\n" };
+    const { code, stdout } = await cli(["scan", await project(files)]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Security 100/100 · Grade A · no leaks · 1 ignored");
+    expect(stdout).not.toContain("src/app.ts");
+  });
+
   it("--json prints only JSON, with the same exit code", async () => {
-    const key = "sk_" + "live_" + "x".repeat(24);
     const { code, stdout } = await cli(["scan", await project({ "src/app.ts": `"${key}"\n` }), "--json"], { isTTY: true });
     expect(code).toBe(1);
     expect(stdout).not.toMatch(ANSI); // even in a terminal
-    expect(JSON.parse(stdout)).toMatchObject({ filesChecked: 1, summary: { total: 1, critical: 1 } });
+    expect(JSON.parse(stdout)).toMatchObject({ summary: { filesChecked: 1, counts: { critical: 1 } } });
   });
 
   it("2 when the path doesn't exist or isn't a folder", async () => {

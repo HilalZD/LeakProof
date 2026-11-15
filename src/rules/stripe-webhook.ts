@@ -1,9 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { extname } from "node:path";
-import { isCodeFile, toProjectPath, walkFiles } from "../lib/files.js";
-import type { Check, Finding } from "../types.js";
+import { basename, extname } from "node:path";
+import { isCodeFile } from "../lib/files.js";
+import type { ScanFinding, ScannerRule } from "../types.js";
 
-const CHECK_ID = "stripe-webhook";
+const RULE_ID = "stripe-webhook";
 
 const SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"]);
 const TEST_FILE = /\.(?:test|spec)\./i;
@@ -34,8 +33,7 @@ const SUBTLE = /\bcrypto\.subtle\b/;
 const HMAC_NAME = /["'`]HMAC["'`]/;
 const VERIFY_CALL = /\w*verify\w*\s*\(/i;
 
-const MESSAGE =
-  "Stripe webhook doesn't verify signatures: anyone can send a fake 'payment completed' event and unlock paid features for free";
+const MESSAGE = "Anyone can send a fake 'payment completed' event and unlock paid features for free.";
 const FIX =
   "Verify the stripe-signature header with stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET) before trusting the event. Use the raw request body, not parsed JSON.";
 
@@ -96,35 +94,56 @@ export function isVerified(code: string): boolean {
   return hmac || VERIFY_CALL.test(text);
 }
 
-/** The finding for one file, or undefined if it isn't an unverified Stripe webhook handler. */
-export function scanContent(file: string, content: string): Finding | undefined {
-  if (!EVENT_NAME.test(content)) return undefined;
-  if (!STRIPE_MARKER.test(file) && !STRIPE_MARKER.test(content)) return undefined;
+/** The 0-based line where the body is read, or -1 if the file isn't a Stripe webhook handler (verified or not). */
+function handlerBodyLine(file: string, content: string): number {
+  if (!EVENT_NAME.test(content)) return -1;
+  if (!STRIPE_MARKER.test(file) && !STRIPE_MARKER.test(content)) return -1;
+  return content.split(/\r?\n/).findIndex((line) => BODY_READS.some((p) => p.test(line)));
+}
 
-  const lines = content.split(/\r?\n/);
-  const bodyLine = lines.findIndex((line) => BODY_READS.some((p) => p.test(line)));
+/** Whether this check treats the file as a Stripe webhook handler, verified or not. */
+export const isStripeWebhookHandler = (file: string, content: string) => handlerBodyLine(file, content) !== -1;
+
+/** The finding for one file, or undefined if it isn't an unverified Stripe webhook handler. */
+export function scanContent(file: string, content: string): ScanFinding | undefined {
+  const bodyLine = handlerBodyLine(file, content);
   if (bodyLine === -1 || isVerified(content)) return undefined;
 
-  return { checkId: CHECK_ID, severity: "critical", file, line: bodyLine + 1, message: MESSAGE, fix: FIX };
+  return {
+    ruleId: RULE_ID,
+    fixId: "SEC_STRIPE_WEBHOOK_UNSIGNED",
+    category: "security",
+    title: "Stripe webhook doesn't verify signatures",
+    confidence: "medium",
+    severity: "critical",
+    file,
+    line: bodyLine + 1,
+    message: MESSAGE,
+    fix: FIX,
+  };
 }
 
 const isScriptFile = (name: string) =>
   isCodeFile(name) && SCRIPT_EXTENSIONS.has(extname(name).toLowerCase()) && !TEST_FILE.test(name);
 
-export const stripeWebhookCheck: Check = {
-  id: CHECK_ID,
-  name: "Stripe webhook signature verification",
-  passedLabel: "Stripe webhooks verify signatures",
-  severity: "critical",
-  async run(projectPath, context) {
-    const findings: Finding[] = [];
-    for await (const filePath of walkFiles(projectPath, isScriptFile, context)) {
-      const file = toProjectPath(projectPath, filePath);
-      if (file.split("/").includes("__tests__")) continue;
+/** The files this check reads: script files outside tests. */
+const handlerFiles = (files: string[]) =>
+  files.filter((file) => isScriptFile(basename(file)) && !file.split("/").includes("__tests__"));
 
-      const finding = scanContent(file, await readFile(filePath, "utf8"));
+export const stripeWebhookRule: ScannerRule = {
+  id: RULE_ID,
+  category: "security",
+  description: "Stripe webhook signature verification",
+  passedLabel: "Stripe webhooks verify signatures",
+  jsOnly: true,
+  notApplicable: (ctx) =>
+    handlerFiles(ctx.files).some((file) => isStripeWebhookHandler(file, ctx.read(file))) ? undefined : "no Stripe webhook found",
+  run(ctx) {
+    const findings: ScanFinding[] = [];
+    for (const file of handlerFiles(ctx.files)) {
+      const finding = scanContent(file, ctx.read(file));
       if (finding) findings.push(finding);
     }
-    return findings.sort((a, b) => a.file.localeCompare(b.file));
+    return findings.sort((a, b) => (a.file ?? "").localeCompare(b.file ?? ""));
   },
 };
