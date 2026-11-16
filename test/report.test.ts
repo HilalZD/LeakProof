@@ -4,6 +4,7 @@ import { join } from "node:path";
 import pc from "picocolors";
 import { afterEach, describe, expect, it } from "vitest";
 import { run, useColor, type CliIo } from "../src/cli.js";
+import { SITE_URL } from "../src/config.js";
 import { exitCodeFor, renderJson, renderReport, WIDTH, wrap } from "../src/report.js";
 import type { ScanResult } from "../src/scan.js";
 import type { ScanFinding as Finding, ScannerRule as Check, Severity } from "../src/types.js";
@@ -351,9 +352,9 @@ describe("renderReport", () => {
     expect(verbose).toContain("Checks run:\n  ✓ Leaked secret keys in code (leaked-keys)\n  ⚠ Committed .env files (committed-env): skipped");
   });
 
-  it("uses the placeholder SITE_URL from config.ts by default", () => {
+  it("uses SITE_URL from config.ts by default", () => {
     const out = renderReport(result([finding("critical", ".env", 7)]), { colors: noColors, version: "9.9.9" });
-    expect(out).toContain("https://SITE_URL_PLACEHOLDER/fix?f=SEC_SECRET_HARDCODED");
+    expect(out).toContain(`${SITE_URL}/fix?f=SEC_SECRET_HARDCODED`);
   });
 
   it("has no ANSI codes with colors off, and has them with colors on", () => {

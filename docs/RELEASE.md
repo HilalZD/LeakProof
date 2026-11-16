@@ -14,16 +14,17 @@ export const SITE_URL = "https://<live site>";
 Also replace the placeholder in the same change:
 - `README.md` line 94: `https://SITE_URL_PLACEHOLDER/fix?...` → the live address.
 - `CONTRACT.md` section 4: say the site is live and give its address.
-- `test/report.test.ts` (line 356) and `test/supabase-rls.test.ts` (line 223) expect `SITE_URL_PLACEHOLDER`: change them to the live address.
 - `CHANGELOG.md`: `## 0.2.0 (unreleased)` → `## 0.2.0 (<launch date>)`.
 
 ```bash
 npm run typecheck
 npm test
 npm run build
-git add -A src README.md CONTRACT.md CHANGELOG.md test
+git add -A src README.md CONTRACT.md CHANGELOG.md
 git commit -m "Set SITE_URL for launch"
 ```
+
+(The tests read `SITE_URL` from `src/config.ts`, so they don't need changing.)
 
 Check: `grep -rn SITE_URL_PLACEHOLDER src README.md CONTRACT.md test` prints nothing, and `node dist/index.js <any app>` prints a fix link with the live address.
 

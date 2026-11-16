@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { SITE_URL } from "../src/config.js";
 import { createProjectContext } from "../src/lib/files.js";
 import { splitStatements } from "../src/lib/sql.js";
 import { supabaseRlsRule } from "../src/rules/supabase-rls.js";
@@ -220,7 +221,7 @@ describe("chunk 3D: public forms and wording", () => {
     const [f] = await run({ "src/client.ts": `import { createClient } from "@supabase/supabase-js";` });
     expect(f.message).toContain("Security Advisor");
     expect(f.message).toContain(
-      "Leakproof Cloud will check your live database rules, with your permission. Join early access: https://SITE_URL_PLACEHOLDER/fix?f=SEC_SUPABASE_RLS_UNVERIFIED",
+      `Leakproof Cloud will check your live database rules, with your permission. Join early access: ${SITE_URL}/fix?f=SEC_SUPABASE_RLS_UNVERIFIED`,
     );
   });
 });
