@@ -2,7 +2,7 @@
 
 **Find the leaks AI coding tools leave behind. One command, runs locally, sends nothing.**
 
-<!-- DEMO GIF: record with `vhs docs/demo.tape`, then replace this line with ![Leakproof scanning a test app](docs/demo.gif) -->
+![Leakproof scanning a test app](https://raw.githubusercontent.com/HilalZD/LeakProof/main/docs/demo.gif)
 
 ## Quick start
 

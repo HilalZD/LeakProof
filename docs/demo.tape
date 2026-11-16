@@ -4,7 +4,7 @@
 #   1. Check out NoteNest's broken branch:
 #        cd ../notenest-three-and-free && git checkout broken   (NoteNest next to the LeakProof folder)
 #   2. From the LeakProof folder, run:  vhs docs/demo.tape
-#   3. The GIF lands in docs/demo.gif. Swap it in for the placeholder line in README.md.
+#   3. The GIF lands in docs/demo.gif. README.md already shows it (from the main branch on GitHub).
 #
 # npx downloads @leakproof/cli from npm, so v0.2.0 has to be published first.
 # To record before publishing, replace the Type line with:

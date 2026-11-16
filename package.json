@@ -7,7 +7,10 @@
     "leakproof": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=20"
@@ -30,7 +33,19 @@
     "supabase",
     "stripe",
     "cli",
-    "leak"
+    "leak",
+    "privacy",
+    "gdpr",
+    "pipeda",
+    "secret-scanner",
+    "supabase-rls",
+    "nextjs",
+    "vite",
+    "cursor",
+    "claude-code",
+    "codex",
+    "github-action",
+    "ai-generated-code"
   ],
   "author": "Hilal Zeidan",
   "license": "MIT",
