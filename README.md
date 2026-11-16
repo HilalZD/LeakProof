@@ -91,7 +91,7 @@ Privacy: 3 possible gaps (not legal advice)
 This is not legal advice.
 
 Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:
-https://SITE_URL_PLACEHOLDER/fix#f=SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_SUPABASE_RLS_DISABLED,…
+https://leakproof-51r.pages.dev/fix#f=SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_SUPABASE_RLS_DISABLED,…
 
 Scanned locally. Nothing was sent anywhere.
 Help improve Leakproof: `leakproof telemetry on` shares anonymous counts (never code).

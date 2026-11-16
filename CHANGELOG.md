@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-11-16)
 
 - **Fix links use `#f=`** (`/fix#f=ID1,ID2`): the IDs after `#` are never sent to a server.
 

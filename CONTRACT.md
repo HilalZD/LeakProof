@@ -46,10 +46,10 @@ A rule pack is a folder whose `src/index.ts` does `export const rules: Rule[] = 
 ## 4. Fix links (scanner → landing page)
 The scanner prints one link containing the fix IDs only, never code, file paths or user data:
 ```
-https://<SITE_URL>/fix#f=SEC_SUPABASE_RLS_DISABLED,PRIV_NO_PRIVACY_POLICY
+https://leakproof-51r.pages.dev/fix#f=SEC_SUPABASE_RLS_DISABLED,PRIV_NO_PRIVACY_POLICY
 ```
 The IDs go after `#` (v1.4; before that, `?f=`). Browsers never send the part after `#` to a server, so the IDs stay in the user's browser. The site still reads `?f=` for links from older scanners.
-`SITE_URL` is a placeholder until Yara's site is live (e.g. `leakproof.pages.dev`).
+The site is live at https://leakproof-51r.pages.dev (Nov 16, 2026); `SITE_URL` in `src/config.ts` holds it.
 
 ## 5. Master list of fix IDs
 
