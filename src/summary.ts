@@ -46,7 +46,8 @@ const FIX_ID = /^[A-Z][A-Z0-9_]+$/;
 /**
  * The one fix link: every unique fixId, worst severity first, ties in the
  * order given. Only fix IDs, never code, paths or values. Undefined when
- * there is nothing to fix.
+ * there is nothing to fix. The IDs go after "#", which browsers never send
+ * to a server (CONTRACT.md section 4).
  */
 export function buildFixLink(findings: Pick<Finding, "fixId" | "severity">[], siteUrl = SITE_URL): string | undefined {
   const worst = new Map<string, number>(); // fixId -> severity rank
@@ -60,5 +61,5 @@ export function buildFixLink(findings: Pick<Finding, "fixId" | "severity">[], si
   if (worst.size === 0) return undefined;
 
   const ids = [...worst.keys()].sort((a, b) => worst.get(a)! - worst.get(b)! || firstSeen.get(a)! - firstSeen.get(b)!);
-  return `${siteUrl.replace(/\/+$/, "")}/fix?f=${ids.join(",")}`;
+  return `${siteUrl.replace(/\/+$/, "")}/fix#f=${ids.join(",")}`;
 }

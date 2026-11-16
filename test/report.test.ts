@@ -101,7 +101,7 @@ describe("renderReport", () => {
     );
     expect(lines(out).slice(-4)).toEqual([
       "Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:",
-      `${SITE}/fix?f=SEC_SECRET_HARDCODED`,
+      `${SITE}/fix#f=SEC_SECRET_HARDCODED`,
       "",
       FOOTER,
     ]);
@@ -227,7 +227,7 @@ describe("renderReport", () => {
       expect(lines(out)[2]).toBe("Security 99/100 · Grade A · 1 low");
       expect(out.indexOf("── LOW (1)")).toBeLessThan(out.indexOf("── COULDN'T VERIFY (1)"));
       expect(out).toContain("  Database rules couldn't be checked\n    No supabase/migrations folder");
-      expect(out).toContain(`${SITE}/fix?f=SEC_SECRET_HARDCODED,SEC_SUPABASE_RLS_UNVERIFIED`);
+      expect(out).toContain(`${SITE}/fix#f=SEC_SECRET_HARDCODED,SEC_SUPABASE_RLS_UNVERIFIED`);
     });
 
     it("doesn't show a ✓ for a check that couldn't verify", () => {
@@ -354,7 +354,7 @@ describe("renderReport", () => {
 
   it("uses SITE_URL from config.ts by default", () => {
     const out = renderReport(result([finding("critical", ".env", 7)]), { colors: noColors, version: "9.9.9" });
-    expect(out).toContain(`${SITE_URL}/fix?f=SEC_SECRET_HARDCODED`);
+    expect(out).toContain(`${SITE_URL}/fix#f=SEC_SECRET_HARDCODED`);
   });
 
   it("has no ANSI codes with colors off, and has them with colors on", () => {
@@ -380,7 +380,7 @@ describe("renderJson", () => {
         privacy: { count: 0, bySeverity: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } },
         filesChecked: 42,
         ignored: 1,
-        fixLink: `${SITE}/fix?f=SEC_SECRET_HARDCODED`,
+        fixLink: `${SITE}/fix#f=SEC_SECRET_HARDCODED`,
       },
       // Report order: worst first.
       findings: [findings[1], findings[0], findings[2]],

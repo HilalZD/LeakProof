@@ -103,7 +103,7 @@ describe("annotations", () => {
     const out = renderGithub(result([finding("critical", "a.ts", 1)]), "https://example.test");
     expect(out.trimEnd().split("\n").slice(-2)).toEqual([
       "Leakproof: Security 39/100 · Grade F · 1 critical",
-      "Fixes: https://example.test/fix?f=SEC_SECRET_HARDCODED",
+      "Fixes: https://example.test/fix#f=SEC_SECRET_HARDCODED",
     ]);
     expect(renderGithub(result([]))).toBe("Leakproof: Security 100/100 · Grade A · no leaks\n");
   });
@@ -120,7 +120,7 @@ describe("Markdown summary", () => {
     expect(md).toContain("**Security 59/100 · Grade D** · 1 high, 1 couldn't verify");
     expect(md).toContain("| Severity | Finding | Location | Rule |");
     expect(md).toContain("| high | **Secret in code**<br>a \\| b | `src/a.ts:3`, `.env:2` | `SEC_SECRET_HARDCODED` |");
-    expect(md).toContain("https://example.test/fix?f=SEC_SECRET_HARDCODED");
+    expect(md).toContain("https://example.test/fix#f=SEC_SECRET_HARDCODED");
   });
 
   it("has no table for a clean scan", () => {

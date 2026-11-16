@@ -2,6 +2,8 @@
 
 ## 0.2.0 (unreleased)
 
+- **Fix links use `#f=`** (`/fix#f=ID1,ID2`): the IDs after `#` are never sent to a server.
+
 ### New checks
 - **Secrets the browser can reach** (`SEC_SECRET_CLIENT_EXPOSED`): secret keys in frontend files and in `VITE_` / `NEXT_PUBLIC_` variables. Test keys are lowered to high.
 - **Supabase admin key in the frontend** (`SEC_SUPABASE_SERVICE_ROLE_CLIENT`): the `service_role` key used in browser code.

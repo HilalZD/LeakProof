@@ -70,7 +70,7 @@ describe("buildFixLink", () => {
     );
     expect(link).toBe(
       // Both high: SEC_API_NO_RATE_LIMIT was given first.
-      `${SITE}/fix?f=SEC_ENV_COMMITTED,SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_API_NO_RATE_LIMIT,SEC_SECRET_CLIENT_EXPOSED,SEC_ENV_COMMITTED_PUBLIC_ONLY,SEC_SUPABASE_RLS_UNVERIFIED`,
+      `${SITE}/fix#f=SEC_ENV_COMMITTED,SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_API_NO_RATE_LIMIT,SEC_SECRET_CLIENT_EXPOSED,SEC_ENV_COMMITTED_PUBLIC_ONLY,SEC_SUPABASE_RLS_UNVERIFIED`,
     );
   });
 
@@ -85,12 +85,14 @@ describe("buildFixLink", () => {
       ],
       SITE,
     )!;
-    expect(link).toBe(`${SITE}/fix?f=SEC_SECRET_HARDCODED`);
-    expect(new URL(link).searchParams.get("f")).toMatch(/^[A-Z0-9_,]+$/);
+    expect(link).toBe(`${SITE}/fix#f=SEC_SECRET_HARDCODED`);
+    const url = new URL(link);
+    expect(url.search).toBe(""); // nothing that a server would receive
+    expect(new URLSearchParams(url.hash.slice(1)).get("f")).toMatch(/^[A-Z0-9_,]+$/);
   });
 
   it("is undefined when there is nothing to fix, and tolerates a trailing slash on the site URL", () => {
     expect(buildFixLink([], SITE)).toBeUndefined();
-    expect(buildFixLink([f("SEC_ENV_COMMITTED", "critical")], `${SITE}/`)).toBe(`${SITE}/fix?f=SEC_ENV_COMMITTED`);
+    expect(buildFixLink([f("SEC_ENV_COMMITTED", "critical")], `${SITE}/`)).toBe(`${SITE}/fix#f=SEC_ENV_COMMITTED`);
   });
 });

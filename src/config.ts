@@ -1,5 +1,5 @@
 // TODO: replace with Yara's site once it's live (e.g. "https://leakproof.pages.dev").
-// The fix link is `${SITE_URL}/fix?f=<fixIds>` (CONTRACT.md section 4).
+// The fix link is `${SITE_URL}/fix#f=<fixIds>` (CONTRACT.md section 4).
 export const SITE_URL = "https://SITE_URL_PLACEHOLDER";
 
 // TODO: replace with the real endpoint before turning telemetry on for anyone.

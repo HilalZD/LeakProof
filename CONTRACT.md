@@ -1,4 +1,4 @@
-# THE LEAKPROOF CONTRACT (v1.3, updated Nov 15, 2026)
+# THE LEAKPROOF CONTRACT (v1.4, updated Nov 16, 2026)
 
 The three parts of scanner v0.2 are built separately, on three different computers, and joined at the end. They fit together only because everyone follows this contract exactly.
 **Never rename or delete anything here.** If you need a new fix ID, add it under "Proposed" at the bottom and tell Hilal. Hilal is the only one who changes this file.
@@ -46,8 +46,9 @@ A rule pack is a folder whose `src/index.ts` does `export const rules: Rule[] = 
 ## 4. Fix links (scanner → landing page)
 The scanner prints one link containing the fix IDs only, never code, file paths or user data:
 ```
-https://<SITE_URL>/fix?f=SEC_SUPABASE_RLS_DISABLED,PRIV_NO_PRIVACY_POLICY
+https://<SITE_URL>/fix#f=SEC_SUPABASE_RLS_DISABLED,PRIV_NO_PRIVACY_POLICY
 ```
+The IDs go after `#` (v1.4; before that, `?f=`). Browsers never send the part after `#` to a server, so the IDs stay in the user's browser. The site still reads `?f=` for links from older scanners.
 `SITE_URL` is a placeholder until Yara's site is live (e.g. `leakproof.pages.dev`).
 
 ## 5. Master list of fix IDs

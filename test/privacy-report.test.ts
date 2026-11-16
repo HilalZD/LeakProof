@@ -114,7 +114,7 @@ describe("privacy section", () => {
     const link = render(result([sec("high"), priv("PRIV_PII_IN_LOGS", "medium", "a.ts", 1), priv("PRIV_PII_IN_LOGS", "medium", "a.ts", 2), priv("PRIV_PII_IN_LOGS", "medium", "b.ts", 3)]))
       .split("\n")
       .find((l) => l.startsWith("https://fix.test"));
-    expect(link).toBe("https://fix.test/fix?f=SEC_SECRET_HARDCODED,PRIV_PII_IN_LOGS");
+    expect(link).toBe("https://fix.test/fix#f=SEC_SECRET_HARDCODED,PRIV_PII_IN_LOGS");
   });
 });
 
