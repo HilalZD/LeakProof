@@ -5,7 +5,7 @@ import pc from "picocolors";
 import { afterEach, describe, expect, it } from "vitest";
 import { run, useColor, type CliIo } from "../src/cli.js";
 import { SITE_URL } from "../src/config.js";
-import { exitCodeFor, renderJson, renderReport, WIDTH, wrap } from "../src/report.js";
+import { exitCodeFor, renderJson, renderReport, renderShortSummary, WIDTH, wrap } from "../src/report.js";
 import type { ScanResult } from "../src/scan.js";
 import type { ScanFinding as Finding, ScannerRule as Check, Severity } from "../src/types.js";
 
@@ -451,14 +451,14 @@ describe("CLI exit codes and output", () => {
   const key = "sk_" + "live_" + "x".repeat(24);
 
   it("0 for a clean folder", async () => {
-    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": "export const x = 1;\n" })]);
+    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": "export const x = 1;\n" }), "--details"]);
     expect(code).toBe(0);
     expect(stdout).toContain("Security 100/100 · Grade A · no leaks");
     expect(stdout).toContain("1 file checked");
   });
 
   it("1 when there are findings", async () => {
-    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": `const k = "${key}";\n` })]);
+    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": `const k = "${key}";\n` }), "--details"]);
     expect(code).toBe(1);
     expect(stdout).toContain("Security 39/100 · Grade F · 1 critical");
     expect(stdout).not.toContain(key);
@@ -467,10 +467,86 @@ describe("CLI exit codes and output", () => {
 
   it("ignored findings don't fail the scan, and the summary says how many", async () => {
     const files = { "src/app.ts": `const k = "${key}";\n`, ".leakproofignore": "# demo key\nsrc/app.ts:SEC_SECRET_HARDCODED\n" };
-    const { code, stdout } = await cli(["scan", await project(files)]);
+    const { code, stdout } = await cli(["scan", await project(files), "--details"]);
     expect(code).toBe(0);
     expect(stdout).toContain("Security 100/100 · Grade A · no leaks · 1 ignored");
     expect(stdout).not.toContain("src/app.ts");
+  });
+
+  it("with no flags prints only the short summary, with the same exit code", async () => {
+    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": `const k = "${key}";\n` })]);
+    expect(code).toBe(1);
+    expect(lines(stdout)).toEqual([
+      "Leakproof scanned 1 file",
+      "Scanned on your computer. Nothing was uploaded.",
+      "",
+      "1 problem found",
+      "  1 critical",
+      "",
+      "Fix everything here:",
+      expect.stringMatching(/^https:\/\/leakproof-51r\.pages\.dev\/fix#[0-9a-z]+$/),
+      "",
+      "Want the full list with file names and lines? Run: npx @leakproof/cli --details",
+    ]);
+    expect(stdout).not.toContain(key);
+    expect(stdout).not.toContain("src/app.ts");
+    expect(stdout).not.toMatch(ANSI); // not a terminal
+  });
+
+  it('with no flags prints only "No problems found" for a clean folder', async () => {
+    const { code, stdout } = await cli(["scan", await project({ "src/app.ts": "export const x = 1;\n" })]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("No problems found\n");
+  });
+
+  it("the short summary uses the same fix link as --details and --json", async () => {
+    const dir = await project({ "src/app.ts": `const k = "${key}";\n` });
+    const short = (await cli(["scan", dir])).stdout;
+    const details = (await cli(["scan", dir, "--details"])).stdout;
+    const link = JSON.parse((await cli(["scan", dir, "--json"])).stdout).summary.fixLink;
+    expect(link).toMatch(/\/fix#/);
+    expect(short).toContain(`Fix everything here:\n${link}\n`);
+    expect(details).toContain(`${link}\n`);
+  });
+
+  it("counts security and privacy problems together, worst first, skipping zeros", () => {
+    const privacy = { ...finding("medium", "src/a.ts", 2), category: "privacy" as const, fixId: "PRIV_PII_IN_LOGS" };
+    const info = { ...finding("info", "src/b.ts", 3), fixId: "SEC_SUPABASE_RLS_UNVERIFIED" };
+    const out = renderShortSummary(result([finding("high", "src/c.ts", 1), privacy, privacy, info]), { colors: noColors, siteUrl: SITE });
+    expect(lines(out).slice(0, 6)).toEqual([
+      "Leakproof scanned 42 files",
+      "Scanned on your computer. Nothing was uploaded.",
+      "",
+      "3 problems found",
+      "  1 high",
+      "  2 medium",
+    ]);
+  });
+
+  describe("short summary: couldn't verify", () => {
+    const info = { ...finding("info", "src/b.ts", 3), fixId: "SEC_SUPABASE_RLS_UNVERIFIED" };
+    const short = (findings: Finding[]) => renderShortSummary(result(findings), { colors: noColors, siteUrl: SITE });
+
+    it("adds one line at the end with how many checks couldn't run", () => {
+      expect(lines(short([finding("high", "src/c.ts", 1), info])).at(-1)).toBe("1 check couldn't run. See --details.");
+      expect(lines(short([finding("high", "src/c.ts", 1), info, { ...info, line: 9 }])).at(-1)).toBe("2 checks couldn't run. See --details.");
+    });
+
+    it("adds nothing when every check could run", () => {
+      const out = short([finding("high", "src/c.ts", 1)]);
+      expect(out).not.toContain("couldn't run");
+      expect(lines(out).at(-1)).toBe("Want the full list with file names and lines? Run: npx @leakproof/cli --details");
+    });
+
+    it('keeps "No problems found" as it is', () => {
+      expect(short([info])).toBe("No problems found\n");
+    });
+  });
+
+  it("lists --details in --help", async () => {
+    const { code, stdout } = await cli(["scan", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/--details\s+Show every problem with its file, line and fix/);
   });
 
   it("--json prints only JSON, with the same exit code", async () => {

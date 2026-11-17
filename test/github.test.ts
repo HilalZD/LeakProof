@@ -211,7 +211,8 @@ describe("CLI --format github and --fail-on", () => {
   it("scan is the default command", async () => {
     const { code, stdout } = await cli([await project({ "a.ts": "export {};\n" })], { isTTY: false });
     expect(code).toBe(0);
-    expect(stdout).toContain("Grade A");
+    // The default text output is now the short summary.
+    expect(stdout).toBe("No problems found\n");
   });
 });
 
