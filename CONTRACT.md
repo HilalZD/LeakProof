@@ -1,4 +1,4 @@
-# THE LEAKPROOF CONTRACT (v1.4, updated Nov 16, 2026)
+# THE LEAKPROOF CONTRACT (v1.5, updated Nov 17, 2026)
 
 The three parts of scanner v0.2 are built separately, on three different computers, and joined at the end. They fit together only because everyone follows this contract exactly.
 **Never rename or delete anything here.** If you need a new fix ID, add it under "Proposed" at the bottom and tell Hilal. Hilal is the only one who changes this file.
@@ -44,14 +44,20 @@ export interface Rule {
 A rule pack is a folder whose `src/index.ts` does `export const rules: Rule[] = [...]`.
 
 ## 4. Fix links (scanner → landing page)
-The scanner prints one link containing the fix IDs only, never code, file paths or user data:
+The scanner prints one short link that encodes the fix IDs only, never code, file paths or user data:
 ```
-https://leakproof-51r.pages.dev/fix#f=SEC_SUPABASE_RLS_DISABLED,PRIV_NO_PRIVACY_POLICY
+https://leakproof-51r.pages.dev/fix#37k
 ```
-The IDs go after `#` (v1.4; before that, `?f=`). Browsers never send the part after `#` to a server, so the IDs stay in the user's browser. The site still reads `?f=` for links from older scanners.
+`37k` means SEC_SUPABASE_RLS_DISABLED + PRIV_NO_PRIVACY_POLICY. The code is a **base36 bitmask over the master list in section 5, in its exact order**: bit 0 = the first ID (SEC_SECRET_HARDCODED), bit 1 = the second, and so on. Here bits 6 and 12 are set: 2⁶ + 2¹² = 4160 = `37k` in base 36. All 18 current IDs fit in 4 characters.
+
+The same list is in `src/lib/fix-order.ts` (scanner) and `lib/fix-order.ts` (website); tests check both against this file. If an ID isn't in the list yet, the scanner falls back to the long form `/fix#f=ID1,ID2`.
+
+Browsers never send the part after `#` to a server, so the fix IDs stay in the user's browser. The site still reads the older formats: `#f=ID1,ID2` (v1.4) and `?f=ID1,ID2` (before v1.4).
 The site is live at https://leakproof-51r.pages.dev (Nov 16, 2026); `SITE_URL` in `src/config.ts` holds it.
 
 ## 5. Master list of fix IDs
+
+**APPEND-ONLY:** never reorder or remove an ID in these tables. Short fix links (section 4) depend on each ID's position, so every link already printed would break. A new ID goes at the end: after PRIV_PII_IN_LOGS, in the order IDs are added, and into both `fix-order.ts` files.
 
 **Severity rule:** the severity in these tables is the default and the maximum. A rule may *lower* it when a case is clearly less dangerous (e.g. test keys), never raise it.
 

@@ -3,7 +3,7 @@ import pc from "picocolors";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { renderAnnotations, renderGithub, renderMarkdownSummary } from "../src/github.js";
-import { exitCodeFor, NOT_LEGAL_ADVICE, renderJson, renderReport } from "../src/report.js";
+import { exitCodeFor, renderJson, renderReport } from "../src/report.js";
 import { rules as privacyRules } from "../src/rules/privacy/index.js";
 import { PRIVACY_FIXES } from "../src/rules/privacy/laws.js";
 import type { ScanResult } from "../src/scan.js";
@@ -55,12 +55,12 @@ describe("privacy never changes the security score", () => {
     const out = render(result([sec("low"), priv("PRIV_NO_PRIVACY_POLICY"), priv("PRIV_NO_ACCOUNT_DELETION"), priv("PRIV_NO_DATA_EXPORT", "low")]));
     const lines = out.split("\n");
     expect(lines[2]).toBe("Security 99/100 · Grade A · 1 low");
-    expect(lines[3]).toBe("Privacy: 3 possible gaps (not legal advice)");
+    expect(lines[3]).toBe("Privacy: 3 possible gaps");
   });
 
   it("says when no privacy gaps were found", () => {
-    expect(render(result([]))).toContain("Privacy: no possible gaps found (not legal advice)");
-    expect(render(result([]))).not.toContain(NOT_LEGAL_ADVICE);
+    expect(render(result([]))).toContain("Privacy: no possible gaps found");
+    expect(render(result([]))).not.toContain("legal advice");
   });
 
   it("privacy-only results are still Security 100/100 · Grade A", () => {
@@ -80,7 +80,7 @@ describe("privacy section", () => {
 
   it("comes after the security findings, worst first", () => {
     const at = (text: string) => out.indexOf(text);
-    expect(at("── CRITICAL (1)")).toBeLessThan(at("── PRIVACY GAPS (possible) (3)"));
+    expect(at("── CRITICAL (1)")).toBeLessThan(at("── PRIVACY GAPS (3)"));
     expect(at("No privacy policy found")).toBeLessThan(at("Personal data printed to logs"));
     expect(at("Personal data printed to logs")).toBeLessThan(at("Users can't get a copy of their data"));
     expect(at("── PRIVACY GAPS")).toBeLessThan(at("Copy-paste fixes"));
@@ -99,9 +99,9 @@ describe("privacy section", () => {
     expect(out).toContain("  Users can't get a copy of their data (low confidence)\n  src/Signup.tsx:13\n    Possible gap: PRIV_NO_DATA_EXPORT.\n    GDPR Art. 15 · GDPR Art. 20 · PIPEDA 4.9\n\n");
   });
 
-  it("prints 'This is not legal advice.' exactly once, under the privacy section", () => {
-    expect(out.split(NOT_LEGAL_ADVICE)).toHaveLength(2);
-    expect(out.indexOf(NOT_LEGAL_ADVICE)).toBeGreaterThan(out.indexOf("Users can't get a copy of their data"));
+  it("has no legal-advice line and no \"(possible)\" in the header (v0.2.1)", () => {
+    expect(out).not.toContain("legal advice");
+    expect(out).not.toContain("PRIVACY GAPS (possible)");
   });
 
   it("never gives privacy rules a ✓, even on a clean security result", () => {
@@ -114,7 +114,7 @@ describe("privacy section", () => {
     const link = render(result([sec("high"), priv("PRIV_PII_IN_LOGS", "medium", "a.ts", 1), priv("PRIV_PII_IN_LOGS", "medium", "a.ts", 2), priv("PRIV_PII_IN_LOGS", "medium", "b.ts", 3)]))
       .split("\n")
       .find((l) => l.startsWith("https://fix.test"));
-    expect(link).toBe("https://fix.test/fix#f=SEC_SECRET_HARDCODED,PRIV_PII_IN_LOGS");
+    expect(link).toBe("https://fix.test/fix#2t4x");
   });
 });
 
@@ -164,13 +164,13 @@ describe("JSON and GitHub output", () => {
     expect(lines[1]).toContain("::Privacy (possible gap): No privacy policy found: ");
   });
 
-  it("the stdout summary and the job summary keep privacy apart, with the legal note", () => {
-    expect(renderGithub(r)).toContain("Leakproof: Security 59/100 · Grade D · 1 high\nPrivacy: 2 possible gaps (not legal advice)\n");
+  it("the stdout summary and the job summary keep privacy apart", () => {
+    expect(renderGithub(r)).toContain("Leakproof: Security 59/100 · Grade D · 1 high\nPrivacy: 2 possible gaps\n");
     const md = renderMarkdownSummary(r, "1.0.0");
     expect(md).toContain("**Security 59/100 · Grade D** · 1 high");
-    expect(md).toContain("### Privacy gaps (possible)");
+    expect(md).toContain("### Privacy gaps\n");
     expect(md).toContain("| low | **Users can't get a copy of their data** (low confidence)<br>");
     expect(md).toContain("GDPR Art. 13 · PIPEDA 4.8");
-    expect(md).toContain(`_${NOT_LEGAL_ADVICE}_`);
+    expect(md).not.toContain("legal advice");
   });
 });

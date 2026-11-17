@@ -60,7 +60,6 @@ export function sortPrivacy(findings: Finding[]): Finding[] {
 /** "PIPEDA Principle 4.8" reads as "PIPEDA 4.8" in the terminal; JSON keeps the contract wording. */
 export const shortLawRef = (ref: string) => ref.replace(/^PIPEDA Principles? /, "PIPEDA ");
 
-export const NOT_LEGAL_ADVICE = "This is not legal advice.";
 
 /** Findings at these severities print their one-line fix. */
 const FIX_SEVERITIES: Severity[] = ["critical", "high"];
@@ -270,9 +269,9 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
     const ran = privacyChecks.some((check) => notChecked(result, check)?.kind !== "no-js");
     out.push(
       gaps > 0
-        ? `Privacy: ${plural(gaps, "possible gap")} (not legal advice)`
+        ? `Privacy: ${plural(gaps, "possible gap")}`
         : inspected
-          ? c.dim("Privacy: no possible gaps found (not legal advice)")
+          ? c.dim("Privacy: no possible gaps found")
           : ran
             ? c.dim("Privacy: not applicable (no personal data collection, trackers, sign-up or logs found)")
             : c.dim(`Privacy: not checked (${notChecked(result, privacyChecks[0])?.reason})`),
@@ -338,9 +337,8 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
   // Privacy: possible gaps, after every security finding. Never scored.
   const privacy = sortPrivacy(privacyOnly(result.findings));
   if (privacy.length > 0) {
-    out.push(divider(c, c.magenta, `PRIVACY GAPS (possible) (${privacy.length})`), "");
+    out.push(divider(c, c.magenta, `PRIVACY GAPS (${privacy.length})`), "");
     for (const finding of privacy) out.push(...renderPrivacyFinding(c, finding), "");
-    out.push(c.bold(NOT_LEGAL_ADVICE), "");
   }
 
   if (result.skipped.length > 0) {
@@ -352,7 +350,7 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
 
   if (summary.fixLink) {
     // The link gets a line of its own so it stays whole and clickable.
-    out.push(c.bold("Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:"), summary.fixLink, "");
+    out.push(c.bold("Copy-paste fixes for any AI platform you use:"), summary.fixLink, "");
   }
   if (telemetry === "on") {
     out.push(c.dim("Scanned locally. Your code never leaves your machine; anonymous usage counts are on (`leakproof telemetry off`)."));

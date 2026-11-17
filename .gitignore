@@ -5,3 +5,6 @@ dist/
 !.env.example
 *.log
 coverage/
+
+# Personal Claude Code settings (never committed)
+.claude/settings.local.json

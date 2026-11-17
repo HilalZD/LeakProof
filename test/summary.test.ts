@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Severity } from "../src/contract.js";
+import { decodeShortCode } from "../src/lib/fix-order.js";
 import { buildFixLink, gradeFor, scoreFor } from "../src/summary.js";
 
 const many = (severity: Severity, n: number) => Array.from({ length: n }, () => ({ severity }));
@@ -68,10 +69,16 @@ describe("buildFixLink", () => {
       ],
       SITE,
     );
-    expect(link).toBe(
-      // Both high: SEC_API_NO_RATE_LIMIT was given first.
-      `${SITE}/fix#f=SEC_ENV_COMMITTED,SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_API_NO_RATE_LIMIT,SEC_SECRET_CLIENT_EXPOSED,SEC_ENV_COMMITTED_PUBLIC_ONLY,SEC_SUPABASE_RLS_UNVERIFIED`,
-    );
+    // A short code (bitmask): order and repeats don't change it.
+    expect(link).toBe(`${SITE}/fix#20e`);
+    expect(decodeShortCode("20e")).toEqual([
+      "SEC_SECRET_CLIENT_EXPOSED",
+      "SEC_ENV_COMMITTED",
+      "SEC_ENV_COMMITTED_PUBLIC_ONLY",
+      "SEC_STRIPE_WEBHOOK_UNSIGNED",
+      "SEC_SUPABASE_RLS_UNVERIFIED",
+      "SEC_API_NO_RATE_LIMIT",
+    ]);
   });
 
   it("never contains anything but fix IDs: no paths, code or values", () => {
@@ -85,14 +92,14 @@ describe("buildFixLink", () => {
       ],
       SITE,
     )!;
-    expect(link).toBe(`${SITE}/fix#f=SEC_SECRET_HARDCODED`);
+    expect(link).toBe(`${SITE}/fix#1`);
     const url = new URL(link);
     expect(url.search).toBe(""); // nothing that a server would receive
-    expect(new URLSearchParams(url.hash.slice(1)).get("f")).toMatch(/^[A-Z0-9_,]+$/);
+    expect(url.hash).toMatch(/^#[0-9a-z]+$/); // only the short code
   });
 
   it("is undefined when there is nothing to fix, and tolerates a trailing slash on the site URL", () => {
     expect(buildFixLink([], SITE)).toBeUndefined();
-    expect(buildFixLink([f("SEC_ENV_COMMITTED", "critical")], `${SITE}/`)).toBe(`${SITE}/fix#f=SEC_ENV_COMMITTED`);
+    expect(buildFixLink([f("SEC_ENV_COMMITTED", "critical")], `${SITE}/`)).toBe(`${SITE}/fix#4`);
   });
 });

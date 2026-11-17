@@ -109,7 +109,7 @@ describe("groupSameSecret", () => {
     );
     expect(out.split("Drop the VITE_ prefix.")).toHaveLength(2); // same fixId: its fix once
     // Grouped fixIds still get their fix guide.
-    expect(out).toContain("https://fix.example/fix#f=SEC_SECRET_CLIENT_EXPOSED,SEC_ENV_COMMITTED");
+    expect(out).toContain("https://fix.example/fix#6");
 
     const json = JSON.parse(renderJson(result));
     expect(json.findings[0].alsoFixes).toEqual([{ fixId: "SEC_ENV_COMMITTED", fix: "Remove .env from git." }]);

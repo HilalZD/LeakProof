@@ -1,5 +1,5 @@
 import type { ScanResult } from "./scan.js";
-import { NOT_LEGAL_ADVICE, isPrivacy, notCheckedLines, privacyOnly, reportOrder, securityOnly, shortLawRef, summarize } from "./report.js";
+import { isPrivacy, notCheckedLines, privacyOnly, reportOrder, securityOnly, shortLawRef, summarize } from "./report.js";
 import type { ScanFinding as Finding, Severity } from "./types.js";
 
 /**
@@ -68,7 +68,7 @@ export function renderMarkdownSummary(result: ScanResult, version: string, siteU
     `${s.filesChecked} file${s.filesChecked === 1 ? "" : "s"} checked locally. Your code never left the runner.`,
     "",
   ];
-  if (s.privacy.count > 0) out.splice(4, 0, `Privacy: ${s.privacy.count} possible gap${s.privacy.count === 1 ? "" : "s"} (not legal advice)`, "");
+  if (s.privacy.count > 0) out.splice(4, 0, `Privacy: ${s.privacy.count} possible gap${s.privacy.count === 1 ? "" : "s"}`, "");
   const findings = reportOrder(securityOnly(result.findings));
   if (findings.length > 0) {
     out.push("| Severity | Finding | Location | Rule |", "|---|---|---|---|");
@@ -80,19 +80,19 @@ export function renderMarkdownSummary(result: ScanResult, version: string, siteU
   }
   const privacy = reportOrder(privacyOnly(result.findings));
   if (privacy.length > 0) {
-    out.push("### Privacy gaps (possible)", "", "| Severity | Possible gap | Location | Laws | Rule |", "|---|---|---|---|---|");
+    out.push("### Privacy gaps", "", "| Severity | Possible gap | Location | Laws | Rule |", "|---|---|---|---|---|");
     for (const f of privacy) {
       const low = f.confidence === "low" ? " (low confidence)" : "";
       const where = f.file ? "`" + cell(location(f)) + "`" : "";
       const laws = cell((f.lawRefs ?? []).map(shortLawRef).join(" · "));
       out.push(`| ${f.severity} | **${cell(f.title)}**${low}<br>${cell(f.message)} | ${where} | ${laws} | \`${f.fixId}\` |`);
     }
-    out.push("", `_${NOT_LEGAL_ADVICE}_`, "");
+    out.push("");
   }
   // Checks that didn't run, so the summary never implies they passed.
   const notRun = notCheckedLines(result);
   if (notRun.length > 0) out.push(...notRun.map((line) => `- ${line}`), "");
-  if (s.fixLink) out.push(`**Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:** ${s.fixLink}`, "");
+  if (s.fixLink) out.push(`**Copy-paste fixes for any AI platform you use:** ${s.fixLink}`, "");
   return out.join("\n");
 }
 
@@ -103,7 +103,7 @@ export function renderGithub(result: ScanResult, siteUrl?: string): string {
   const lines = [
     ...renderAnnotations(result.findings),
     `Leakproof: Security ${s.score}/100 · Grade ${s.grade} · ${counts.length > 0 ? counts.join(", ") : "no leaks"}`,
-    ...(s.privacy.count > 0 ? [`Privacy: ${s.privacy.count} possible gap${s.privacy.count === 1 ? "" : "s"} (not legal advice)`] : []),
+    ...(s.privacy.count > 0 ? [`Privacy: ${s.privacy.count} possible gap${s.privacy.count === 1 ? "" : "s"}`] : []),
   ];
   if (s.fixLink) lines.push(`Fixes: ${s.fixLink}`);
   return lines.join("\n") + "\n";

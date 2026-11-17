@@ -1,5 +1,5 @@
 // The live website (Cloudflare Pages), no trailing slash.
-// The fix link is `${SITE_URL}/fix#f=<fixIds>` (CONTRACT.md section 4).
+// The fix link is `${SITE_URL}/fix#<code>`, a short code for the fix IDs (CONTRACT.md section 4).
 export const SITE_URL = "https://leakproof-51r.pages.dev";
 
 // TODO: replace with the real endpoint before turning telemetry on for anyone.

@@ -1,5 +1,6 @@
 import { SITE_URL } from "./config.js";
 import type { Finding, Severity } from "./contract.js";
+import { encodeShortCode } from "./lib/fix-order.js";
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
 
@@ -44,10 +45,12 @@ export function countBySeverity(findings: Pick<Finding, "severity">[]): Record<S
 const FIX_ID = /^[A-Z][A-Z0-9_]+$/;
 
 /**
- * The one fix link: every unique fixId, worst severity first, ties in the
- * order given. Only fix IDs, never code, paths or values. Undefined when
- * there is nothing to fix. The IDs go after "#", which browsers never send
- * to a server (CONTRACT.md section 4).
+ * The one fix link: `<site>/fix#<code>`, where <code> is a base36 bitmask over
+ * FIX_ORDER (src/lib/fix-order.ts, CONTRACT.md section 4). Only fix IDs, never
+ * code, paths or values. Undefined when there is nothing to fix. Everything
+ * after "#" stays in the browser: it is never sent to a server.
+ * If an ID isn't in FIX_ORDER yet, the long form `#f=ID1,ID2` is used instead
+ * (every unique fixId, worst severity first, ties in the order given).
  */
 export function buildFixLink(findings: Pick<Finding, "fixId" | "severity">[], siteUrl = SITE_URL): string | undefined {
   const worst = new Map<string, number>(); // fixId -> severity rank
@@ -61,5 +64,7 @@ export function buildFixLink(findings: Pick<Finding, "fixId" | "severity">[], si
   if (worst.size === 0) return undefined;
 
   const ids = [...worst.keys()].sort((a, b) => worst.get(a)! - worst.get(b)! || firstSeen.get(a)! - firstSeen.get(b)!);
-  return `${siteUrl.replace(/\/+$/, "")}/fix#f=${ids.join(",")}`;
+  const base = `${siteUrl.replace(/\/+$/, "")}/fix#`;
+  const code = encodeShortCode(ids);
+  return code === undefined ? `${base}f=${ids.join(",")}` : base + code;
 }

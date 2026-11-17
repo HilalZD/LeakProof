@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (2026-11-17)
+
+- **Shorter fix links:** `/fix#<code>` (for example `/fix#29ra`), where the code is a base36 bitmask over the CONTRACT master list. All 18 fixes fit in 4 characters. The list is now append-only (CONTRACT.md v1.5). If an ID isn't in the list, the link falls back to `/fix#f=ID1,ID2`.
+- **Cleaner output:** the privacy header is just "PRIVACY GAPS", the summary line reads "Privacy: N possible gaps", and the separate legal line is gone from the terminal report and the GitHub job summary (README and docs keep the note).
+- **New link label:** "Copy-paste fixes for any AI platform you use:".
+- The GitHub Action pins `@leakproof/cli@0.2.1`.
+
 ## 0.2.0 (2026-11-16)
 
 - **Fix links use `#f=`** (`/fix#f=ID1,ID2`): the IDs after `#` are never sent to a server.

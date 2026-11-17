@@ -27,10 +27,10 @@ Works on apps built with any AI tool (Lovable, Bolt, v0, Replit, Cursor, Claude 
 A real scan of NoteNest, a test app with deliberate leaks (keys are fake and masked, the middle is trimmed):
 
 ```text
-Leakproof v0.2.0 · 101 files checked · 1.1s
+Leakproof v0.2.1 · 101 files checked · 1.1s
 
 Security 0/100 · Grade F · 7 critical, 4 high, 1 medium
-Privacy: 3 possible gaps (not legal advice)
+Privacy: 3 possible gaps
 
 ── CRITICAL (7) ────────────────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ Privacy: 3 possible gaps (not legal advice)
 
   … 3 more high findings, 1 medium …
 
-── PRIVACY GAPS (possible) (3) ─────────────────────────────────────────────────
+── PRIVACY GAPS (3) ────────────────────────────────────────────────────────────
 
   Users can't delete their account
   src/routes/auth.tsx:38
@@ -88,10 +88,8 @@ Privacy: 3 possible gaps (not legal advice)
 
   … 2 more possible gaps …
 
-This is not legal advice.
-
-Copy-paste fixes for Lovable, Bolt, Cursor, Claude Code or Codex:
-https://leakproof-51r.pages.dev/fix#f=SEC_STRIPE_WEBHOOK_UNSIGNED,SEC_SUPABASE_RLS_DISABLED,…
+Copy-paste fixes for any AI platform you use:
+https://leakproof-51r.pages.dev/fix#29ra
 
 Scanned locally. Nothing was sent anywhere.
 Help improve Leakproof: `leakproof telemetry on` shares anonymous counts (never code).
