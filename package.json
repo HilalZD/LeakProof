@@ -1,6 +1,6 @@
 {
   "name": "@leakproof/cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Find the leaks AI coding tools leave behind, in apps built with any AI tool. One command, runs locally, sends nothing.",
   "type": "module",
   "bin": {
