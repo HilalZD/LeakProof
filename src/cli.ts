@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { Argument, Command, CommanderError, Option } from "commander";
 import pc from "picocolors";
 import { renderGithub, renderMarkdownSummary } from "./github.js";
-import { exitCodeFor, FAIL_ON_LEVELS, FAIL_ON_PRIVACY_LEVELS, renderJson, renderReport, type FailOn, type FailOnPrivacy } from "./report.js";
+import { exitCodeFor, FAIL_ON_LEVELS, FAIL_ON_PRIVACY_LEVELS, renderJson, renderReport, renderShortSummary, type FailOn, type FailOnPrivacy } from "./report.js";
 import { runScan } from "./scan.js";
 import { buildPayload, configPath, isCI, sendTelemetry, setTelemetry, telemetryState } from "./telemetry.js";
 import type { Rule } from "./types.js";
@@ -49,6 +49,7 @@ type Format = (typeof FORMATS)[number];
 interface ScanOptions {
   json?: boolean;
   verbose?: boolean;
+  details?: boolean;
   format?: Format;
   failOn: FailOn;
   failOnPrivacy?: FailOnPrivacy;
@@ -70,6 +71,8 @@ function render(result: Awaited<ReturnType<typeof runScan>>, format: Format, opt
   const state = telemetryState(io.env, io.home ?? homedir());
   // No invitation in CI: there, only LEAKPROOF_TELEMETRY=1 turns it on.
   const telemetry = state.on ? "on" : isCI(io.env) ? "hidden" : "off";
+  // Default: the short summary. --details (or --verbose, which adds to the full report) prints the full report.
+  if (!options.details && !options.verbose) return renderShortSummary(result, { colors: c, telemetry });
   return renderReport(result, { colors: c, version, verbose: options.verbose, telemetry });
 }
 
@@ -145,6 +148,7 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
     .description("Scan a project folder for leaks (the default: `leakproof [path]`)")
     .argument("[path]", "folder to scan", ".")
     .option("--json", "print the results as JSON")
+    .option("--details", "Show every problem with its file, line and fix")
     .option("--verbose", "also list every check that ran")
     .addOption(new Option("--format <format>", "output format").choices(FORMATS))
     .addOption(

@@ -24,7 +24,33 @@ Works on apps built with any AI tool (Lovable, Bolt, v0, Replit, Cursor, Claude 
 
 ## Example output
 
-A real scan of NoteNest, a test app with deliberate leaks (keys are fake and masked, the middle is trimmed):
+By default, Leakproof prints a short summary: how many problems it found (security and privacy together) at each severity, and one link with the fixes. A real scan of the `test/fixtures/privacy/bad-app` test app:
+
+```text
+Leakproof scanned 8 files
+Scanned on your computer. Nothing was uploaded.
+
+8 problems found
+  3 high
+  4 medium
+  1 low
+
+Fix everything here:
+https://leakproof-51r.pages.dev/fix#5ji8
+
+Want the full list with file names and lines? Run: npx @leakproof/cli --details
+1 check couldn't run. See --details.
+```
+
+With no problems, it prints only `No problems found`. If you turned on anonymous usage counts (`leakproof telemetry on`), the second line says so instead, and it's also shown under `No problems found`.
+
+### The full list: `--details`
+
+```sh
+npx @leakproof/cli --details
+```
+
+`--details` shows every problem with its file, line and fix, plus the security score, the law references for privacy gaps and the checks that were not checked or not applicable. A real scan of NoteNest, a test app with deliberate leaks (keys are fake and masked, the middle is trimmed):
 
 ```text
 Leakproof v0.2.1 · 101 files checked · 1.1s
@@ -170,11 +196,12 @@ Some checks need files that aren't in every repo. When your app uses Supabase bu
 
 | Option | What it does |
 |---|---|
+| `--details` | Show every problem with its file, line and fix (the full report). Without it, Leakproof prints a short summary |
 | `--json` | Machine-readable JSON (summary, findings, skipped checks). Same as `--format json` |
 | `--format <text\|json\|github>` | Output format. `github` prints GitHub Actions annotations and writes a job summary |
 | `--fail-on <critical\|high\|medium\|low>` | Exit 1 only for security findings at this severity or worse. Default: `medium` |
 | `--fail-on-privacy <high\|medium\|low>` | Also exit 1 for privacy gaps at this severity or worse. Off by default: privacy never fails the scan |
-| `--verbose` | Also list every check that ran |
+| `--verbose` | Show the full report (like `--details`) and also list every check that ran |
 
 Exit codes: `0` no security findings at the `--fail-on` level (and no privacy gaps at the `--fail-on-privacy` level, if set), `1` findings, `2` Leakproof couldn't run (bad usage or scanner error).
 

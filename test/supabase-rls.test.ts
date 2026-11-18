@@ -221,7 +221,7 @@ describe("chunk 3D: public forms and wording", () => {
     const [f] = await run({ "src/client.ts": `import { createClient } from "@supabase/supabase-js";` });
     expect(f.message).toContain("Security Advisor");
     expect(f.message).toContain(
-      `Leakproof Cloud will check your live database rules, with your permission. Join early access: ${SITE_URL}/fix#e8`,
+      `Leakproof will check your live database rules, with your permission. Join early access: ${SITE_URL}/fix#e8`,
     );
   });
 });

@@ -5,7 +5,7 @@ import pc from "picocolors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run, type CliIo } from "../src/cli.js";
 import { TELEMETRY_URL } from "../src/config.js";
-import { renderReport, TELEMETRY_HINT } from "../src/report.js";
+import { LOCAL_ONLY_NOTICE, renderReport, TELEMETRY_HINT, TELEMETRY_ON_NOTICE } from "../src/report.js";
 import { detectStack, type ScanResult } from "../src/scan.js";
 import {
   buildPayload,
@@ -205,7 +205,7 @@ describe("CLI", () => {
   it("off by default: a scan makes no network call and the footer invites opting in", async () => {
     const { fn } = mockFetch();
     vi.stubGlobal("fetch", fn);
-    const { code, stdout } = await cli([project], { fetch: fn, telemetryUrl: REAL_URL });
+    const { code, stdout } = await cli([project, "--details"], { fetch: fn, telemetryUrl: REAL_URL });
     expect(code).toBe(1);
     expect(fn).not.toHaveBeenCalled();
     expect(stdout.trimEnd().split("\n").slice(-2)).toEqual(["Scanned locally. Nothing was sent anywhere.", TELEMETRY_HINT]);
@@ -214,7 +214,7 @@ describe("CLI", () => {
   it("on: sends the counts once and never the key or project name", async () => {
     setTelemetry(home, true);
     const { fn, calls } = mockFetch();
-    const { code, stdout } = await cli([project], { fetch: fn, telemetryUrl: REAL_URL });
+    const { code, stdout } = await cli([project, "--details"], { fetch: fn, telemetryUrl: REAL_URL });
     expect(code).toBe(1);
     expect(calls).toHaveLength(1);
     const body = String(calls[0].init.body);
@@ -237,7 +237,7 @@ describe("CLI", () => {
   it("CI: no call and no invitation, even with the config on; the env var opts in", async () => {
     setTelemetry(home, true);
     const { fn, calls } = mockFetch();
-    const ci = await cli([project], { env: { CI: "true" }, fetch: fn, telemetryUrl: REAL_URL });
+    const ci = await cli([project, "--details"], { env: { CI: "true" }, fetch: fn, telemetryUrl: REAL_URL });
     expect(fn).not.toHaveBeenCalled();
     expect(ci.stdout).not.toContain(TELEMETRY_HINT);
     await cli([project, "--format", "github"], { env: { CI: "true", LEAKPROOF_TELEMETRY: "1" }, fetch: fn, telemetryUrl: REAL_URL });
@@ -278,5 +278,55 @@ describe("report footer", () => {
     expect(render()).not.toContain(TELEMETRY_HINT);
     expect(render("on")).not.toContain(TELEMETRY_HINT);
     expect(render("on")).toContain("anonymous usage counts are on");
+  });
+});
+
+describe("short summary (default output)", () => {
+  it("telemetry on: shows the same notice as the full report, and never says nothing was uploaded", async () => {
+    setTelemetry(home, true);
+    const { fn, calls } = mockFetch();
+    const { code, stdout } = await cli([project], { fetch: fn, telemetryUrl: REAL_URL });
+    expect(code).toBe(1);
+    expect(calls).toHaveLength(1);
+    expect(stdout.split("\n").slice(0, 2)).toEqual(["Leakproof scanned 2 files", TELEMETRY_ON_NOTICE]);
+    expect(stdout).not.toContain(LOCAL_ONLY_NOTICE);
+    expect(stdout).not.toContain(TELEMETRY_HINT);
+  });
+
+  it("telemetry on with no problems: still shows the notice", async () => {
+    setTelemetry(home, true);
+    const clean = await mkdtemp(join(tmpdir(), "leakproof-clean-"));
+    try {
+      await writeFile(join(clean, "app.ts"), "export const x = 1;\n");
+      const { fn } = mockFetch();
+      const { stdout } = await cli([clean], { fetch: fn, telemetryUrl: REAL_URL });
+      expect(stdout).toBe(`No problems found\n${TELEMETRY_ON_NOTICE}\n`);
+    } finally {
+      await rm(clean, { recursive: true, force: true });
+    }
+  });
+
+  it("telemetry off: no network call, no telemetry text, and says nothing was uploaded", async () => {
+    const { fn } = mockFetch();
+    vi.stubGlobal("fetch", fn);
+    const { stdout } = await cli([project], { fetch: fn, telemetryUrl: REAL_URL });
+    expect(fn).not.toHaveBeenCalled();
+    expect(stdout.split("\n").slice(0, 2)).toEqual(["Leakproof scanned 2 files", LOCAL_ONLY_NOTICE]);
+    expect(stdout).not.toContain(TELEMETRY_HINT);
+    expect(stdout).not.toContain(TELEMETRY_ON_NOTICE);
+    expect(stdout).not.toMatch(/telemetry|usage counts/);
+  });
+
+  it("telemetry off with no problems: only \"No problems found\"", async () => {
+    const clean = await mkdtemp(join(tmpdir(), "leakproof-clean-"));
+    try {
+      await writeFile(join(clean, "app.ts"), "export const x = 1;\n");
+      const { fn } = mockFetch();
+      const { stdout } = await cli([clean], { fetch: fn, telemetryUrl: REAL_URL });
+      expect(fn).not.toHaveBeenCalled();
+      expect(stdout).toBe("No problems found\n");
+    } finally {
+      await rm(clean, { recursive: true, force: true });
+    }
   });
 });

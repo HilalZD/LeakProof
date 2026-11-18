@@ -16,7 +16,7 @@ const FIX_PERMISSIVE =
 const ADVISOR_TIP =
   "Check your tables in the Supabase dashboard's Security Advisor, or run `supabase db pull` to save your schema into the repo so LeakProof can check it.";
 const FIX_UNVERIFIED = ADVISOR_TIP;
-const UPSELL = "Leakproof Cloud will check your live database rules, with your permission. Join early access:";
+const UPSELL = "Leakproof will check your live database rules, with your permission. Join early access:";
 const UNVERIFIED_LINK = buildFixLink([{ fixId: "SEC_SUPABASE_RLS_UNVERIFIED", severity: "info" }]) ?? "";
 
 const shortName = (t: TableState) => t.key.split(".")[1];

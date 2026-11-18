@@ -23,7 +23,11 @@ export interface ReportOptions {
   telemetry?: "on" | "off" | "hidden";
 }
 
-export const TELEMETRY_HINT = "Help improve Leakproof: `leakproof telemetry on` shares anonymous counts (never code).";
+/** The footer line when opt-in usage counts are on (full report and short summary). */
+export const TELEMETRY_ON_NOTICE =
+  "Scanned locally. Your code never leaves your machine; anonymous usage counts are on (`leakproof telemetry off`).";
+
+export const TELEMETRY_HINT ="Help improve Leakproof: `leakproof telemetry on` shares anonymous counts (never code).";
 
 export const WIDTH = 80;
 
@@ -353,11 +357,51 @@ export function renderReport(result: ScanResult, { colors: c, version, verbose =
     out.push(c.bold("Copy-paste fixes for any AI platform you use:"), summary.fixLink, "");
   }
   if (telemetry === "on") {
-    out.push(c.dim("Scanned locally. Your code never leaves your machine; anonymous usage counts are on (`leakproof telemetry off`)."));
+    out.push(c.dim(TELEMETRY_ON_NOTICE));
   } else {
     out.push(c.dim("Scanned locally. Nothing was sent anywhere."));
     if (telemetry === "off") out.push(c.dim(TELEMETRY_HINT));
   }
+  return out.join("\n") + "\n";
+}
+
+export const DETAILS_HINT = "Want the full list with file names and lines? Run: npx @leakproof/cli --details";
+
+/** Shown under the first line when usage counts are off: nothing leaves the machine then. */
+export const LOCAL_ONLY_NOTICE = "Scanned on your computer. Nothing was uploaded.";
+
+export interface ShortSummaryOptions {
+  colors: Colors;
+  /** Base of the fix link. Defaults to SITE_URL from config.ts. */
+  siteUrl?: string;
+  /** "on" shows TELEMETRY_ON_NOTICE; otherwise LOCAL_ONLY_NOTICE (nothing is sent). */
+  telemetry?: "on" | "off" | "hidden";
+}
+
+/**
+ * The default terminal output: files scanned, how many problems (security and
+ * privacy together) per severity, the fix link and a pointer to --details.
+ * "Couldn't verify" (info) items aren't counted as problems; one line at the
+ * end says how many there are. Ends in a newline.
+ */
+export function renderShortSummary(result: ScanResult, { colors: c, siteUrl = SITE_URL, telemetry }: ShortSummaryOptions): string {
+  const summary = summarize(result, siteUrl);
+  const counts = countBySeverity(result.findings);
+  const total = SECTION_ORDER.reduce((sum, s) => sum + counts[s], 0);
+  // Never claims nothing was sent when usage counts are on.
+  const telemetryNotice = telemetry === "on" ? [c.dim(TELEMETRY_ON_NOTICE)] : [];
+  if (total === 0) return [c.green("No problems found"), ...telemetryNotice].join("\n") + "\n";
+
+  const out = [`${c.bold("Leakproof")} scanned ${plural(result.filesChecked, "file")}`];
+  out.push(...(telemetry === "on" ? telemetryNotice : [c.dim(LOCAL_ONLY_NOTICE)]), "");
+  out.push(c.bold(`${plural(total, "problem")} found`));
+  for (const severity of SECTION_ORDER) {
+    if (counts[severity] > 0) out.push(`  ${severityColor(c, severity)(`${counts[severity]} ${severity}`)}`);
+  }
+  out.push("");
+  if (summary.fixLink) out.push(c.bold("Fix everything here:"), summary.fixLink, "");
+  out.push(c.dim(DETAILS_HINT));
+  if (counts.info > 0) out.push(c.dim(`${plural(counts.info, "check")} couldn't run. See --details.`));
   return out.join("\n") + "\n";
 }
 
