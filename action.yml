@@ -25,4 +25,4 @@ runs:
       env:
         LEAKPROOF_PATH: ${{ inputs.path }}
         LEAKPROOF_FAIL_ON: ${{ inputs.fail-on }}
-      run: npx --yes @leakproof/cli@0.2.1 "$LEAKPROOF_PATH" --format github --fail-on "$LEAKPROOF_FAIL_ON"
+      run: npx --yes @leakproof/cli@0.2.2 "$LEAKPROOF_PATH" --format github --fail-on "$LEAKPROOF_FAIL_ON"
